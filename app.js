@@ -23,6 +23,13 @@
     angebot: ["Angebot", "warn"], gewonnen: ["Kunde", "ok"], kein_interesse: ["Kein Interesse", "bad"], kein_kontakt: ["Nicht erreichbar", "bad"],
   };
   const MAX_VERSUCHE = 5;
+  const ABSENDER = ["Ziu Tonndorf", "Inhaber INFINERO", "Closewitzer Straße 19 · 07743 Jena", "https://infinero.de"];
+  const MAILTEXT = {
+    WEBSITE: ["Moderne Website", "individuell gestaltet, fürs Handy optimiert, bei Google gut auffindbar – inklusive Hosting, Pflege und Sicherheits-Updates", 990, 59],
+    WEBCHAT: ["Web-Chatbot", "beantwortet Kundenfragen rund um die Uhr direkt auf Ihrer Website und nimmt Anfragen entgegen", 690, 79],
+    MSGBOT: ["WhatsApp-/Messenger-Bot", "antwortet automatisch auf Nachrichten, vereinbart Termine und entlastet Ihr Team (je Kanal)", 690, 99],
+    KICALLER: ["KI-Telefonassistent", "nimmt Anrufe an, wenn Sie gerade keine Zeit haben, beantwortet Fragen und notiert Rückrufwünsche", 990, 249],
+  };
   const SATZ_V = 0.5, SATZ_T = 0.25;
   const ART = { vor_ort: "Vor Ort", telefon: "Telefon", video: "Video" };
 
@@ -258,18 +265,31 @@
   }
   function schliessen(neu = true) { $("#sheet").innerHTML = ""; document.body.style.overflow = ""; if (neu) zeige(); }
 
+  function infoMail(l) {
+    const z = (S.zg || []).find(x => x.id === l.zielgruppe);
+    const prods = (l.interesse_produkte || []).filter(c => MAILTEXT[c]);
+    const liste = (prods.length ? prods : ["WEBSITE"]).map(c => { const [t, d, s, m] = MAILTEXT[c]; return `• ${t}: ${d}.\n  Einrichtung ${eur(s)}, danach ${eur(m)} im Monat (netto zzgl. USt).`; }).join("\n\n");
+    const anrede = l.ansprechpartner ? `Guten Tag ${l.ansprechpartner},` : "Guten Tag,";
+    const tel = l.owner && l.owner !== "INH" ? `vielen Dank für das freundliche Telefonat mit meinem Kollegen ${name(l.owner)}` : "vielen Dank für unser freundliches Telefonat";
+    const web = l.website && l.website_bewertung === "veraltet" && l.website_befund
+      ? `\n\nIhre aktuelle Website (${webText(l.website)}) haben wir uns kurz angesehen – dabei ist uns aufgefallen: ${l.website_befund}. Hier steckt viel Potenzial für neue Kunden.` : "";
+    const demo = z && z.demo_url ? `\n\nSo kann das für einen Betrieb wie Ihren aussehen:\n${z.demo_url}` : "";
+    const body = `${anrede}\n\n${tel} – wie besprochen schicke ich Ihnen hier die Informationen zu unseren Leistungen.${web}\n\n${liste}${demo}\n\nGern zeige ich Ihnen in einem kurzen Termin (vor Ort, telefonisch oder per Video), wie das konkret für ${l.firma} aussehen könnte. Antworten Sie einfach auf diese Mail oder nennen Sie mir einen Wunschtermin.\n\nFalls Sie keine weiteren Informationen wünschen, genügt eine kurze Antwort – dann melden wir uns nicht mehr.\n\nViele Grüße\n${ABSENDER.join("\n")}`;
+    return `mailto:${encodeURIComponent(l.email || "")}?subject=${encodeURIComponent("Ihre Infos von INFINERO – " + l.firma)}&body=${encodeURIComponent(body)}`;
+  }
+
   function infoSheet(id) {
     const l = findLead(id);
     const root = sheet("Infos per Mail · " + l.firma, `
       <form id="f" class="form">
         <div class="field full"><label for="i_mail">E-Mail-Adresse</label><input id="i_mail" type="email" inputmode="email" autocomplete="off" value="${esc(l.email)}" required></div>
-        <div class="field"><label for="i_ap">Ansprechpartner</label><input id="i_ap" value="${esc(l.ansprechpartner)}"></div>
+        <div class="field"><label for="i_ap">Ansprechpartner</label><input id="i_ap" placeholder="z. B. Herr Müller" value="${esc(l.ansprechpartner)}"></div>
         <div class="field"><label for="i_wv">Nachfassen am</label><input id="i_wv" type="date" value="${isoDate(naechsterWerktag(3))}"></div>
         <div class="full"><div class="lbl">Interessiert an</div>${produktChips(l.interesse_produkte || [])}</div>
         <label class="check full"><input id="i_ok" type="checkbox" required><span>Der Kontakt hat zugestimmt, dass wir ihm Infos per E-Mail schicken.</span></label>
         <div class="field full"><label for="i_n">Notiz</label><input id="i_n" placeholder="z. B. will Preise für Website + Chatbot"></div>
         <div class="full"><button class="btn primary block" type="submit">Speichern</button></div>
-      </form><p class="hint">Die Anfrage landet im Cockpit unter „Info-Mails offen“ und wird von dort verschickt.</p>`);
+      </form><p class="hint">Die Anfrage landet bei Ziu im Cockpit unter „Info-Mails offen“ – er verschickt eine fertige Mail mit Preisen und Demo-Link.</p>`);
     root.querySelector("#f").addEventListener("submit", async e => {
       e.preventDefault();
       const f = root; const prods = gewaehlt(f);
@@ -394,6 +414,7 @@
         ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a></div>` : ""}
         ${l.website ? `<div class="kv">${webLink(l.website)}${WEB[l.website_bewertung] ? `<span class="pill ${WEB[l.website_bewertung][1]}">${WEB[l.website_bewertung][0]}</span>` : ""}</div>${l.website_befund ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}` : ""}
         ${l.email ? `<div class="kv"><span class="v">${esc(l.email)}</span>${l.einwilligung_email ? `<span class="pill ok">Einwilligung ${dDE(l.einwilligung_email)}</span>` : ""}</div>` : ""}
+        ${inhaber() && l.email && l.info_mail === "offen" ? `<div class="actions"><a class="btn small primary" href="${esc(infoMail(l))}">Info-Mail öffnen</a><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>` : ""}
         ${l.interesse_produkte && l.interesse_produkte.length ? `<div class="meta"><span>Interesse: ${esc(l.interesse_produkte.join(", "))}</span></div>` : ""}
         ${l.gesperrt ? `<div class="due">Keine Werbung – nicht mehr kontaktieren.</div>` : ""}
       </div>
@@ -622,9 +643,10 @@
       <tbody>${rows.length ? rows.map(([k, s]) => `<tr><td>${esc(name(k))}</td><td>${s.anrufe}</td><td>${s.nicht}</td><td>${s.kein}</td><td>${s.info}</td><td>${s.pos}</td></tr>`).join("") : `<tr><td colspan="6">Heute noch keine Anrufe erfasst.</td></tr>`}</tbody></table></div>
       <h2 class="sec">Info-Mails offen <span class="n">${c.info.length}</span></h2>
       <div class="list">${c.info.length ? c.info.map(l => `<article class="card"><div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3><span class="pill accent">${esc((l.interesse_produkte || []).join(", ") || "allgemein")}</span></div>
-        <div class="kv"><span class="v">${esc(l.email || "keine E-Mail")}</span><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>
+        <div class="kv"><span class="v">${esc(l.email || "keine E-Mail")}</span></div>
+        <div class="actions">${l.email ? `<a class="btn small primary" href="${esc(infoMail(l))}">Mail öffnen</a>` : ""}<button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>
         <div class="meta"><span>${esc(l.ansprechpartner || "")}</span><span>Einwilligung ${dDE(l.einwilligung_email)}</span><span>${esc(name(l.owner))}</span></div></article>`).join("") : `<div class="empty">Keine offenen Info-Anfragen.</div>`}</div>
-      <p class="hint">Später übernimmt das der E-Mail-Assistent automatisch. Bis dahin hier abarbeiten.</p>
+      <p class="hint">„Mail öffnen“ erstellt eine fertige, persönliche Mail in deiner Mail-App (Produkte mit Preisen, Demo-Link, Website-Befund). Kurz prüfen, senden, dann „Als gesendet markieren“.</p>
       <h2 class="sec">Demo-Websites <span class="n">${c.demo.length}</span></h2>
       <div class="list">${c.demo.length ? c.demo.map(l => `<article class="card"><div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3><span class="pill ${l.demo_website === "offen" ? "warn" : "accent"}">${l.demo_website === "offen" ? "offen" : "in Arbeit"}</span></div>
         <div class="meta"><span>${esc(l.branche || "")}</span><span>${esc(l.ort || "")}</span>${l.website ? `<span>${webLink(l.website)}</span>` : ""}<span>${esc(l.naechster_schritt || "")}</span></div>
