@@ -334,14 +334,25 @@
         <div class="field full"><label for="im_b">Betreff</label><input id="im_b"></div>
         <div class="field full"><label for="im_t">Text</label><textarea id="im_t" rows="18"></textarea></div>
         <p class="hint full" id="im_ki">✨ Claude schreibt den persönlichen Absatz …</p>
-        <div class="full actions"><a class="btn primary" id="im_open" href="#">In Mail-App öffnen</a><button class="btn" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>
-        <p class="hint full">Absender <b>kontakt@infinero.de</b> wählen. Nach dem Senden „Als gesendet markieren“.</p>
+        <div class="full actions" id="im_direkt" hidden><button class="btn primary" type="button" id="im_send">Direkt senden</button></div>
+        <p class="hint full" id="im_direkt_hint" hidden>Geht sofort von <b>kontakt@infinero.de</b> raus – Antworten und eine Kopie landen im Postfach kontakt@.</p>
+        <div class="full actions"><a class="btn" id="im_open" href="#">In Mail-App öffnen</a><button class="btn" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>
+        <p class="hint full" id="im_app_hint">Mail-App: Absender <b>kontakt@infinero.de</b> wählen. Nach dem Senden „Als gesendet markieren“.</p>
       </form>`);
     const q = s => root.querySelector(s);
     const setzen = ki => { const d = infoMail(l, ki); q("#im_b").value = d.betreff; q("#im_t").value = d.text; aktualisieren(); };
     const aktualisieren = () => { q("#im_open").href = mailtoVon(q("#im_an").value.trim(), q("#im_b").value, q("#im_t").value); };
     ["#im_an", "#im_b", "#im_t"].forEach(s => q(s).addEventListener("input", aktualisieren));
     setzen("");
+    store.mailBereit().then(ok => { if (ok) { q("#im_direkt").hidden = false; q("#im_direkt_hint").hidden = false; q("#im_open").classList.remove("primary"); } else q("#im_open").classList.add("primary"); });
+    q("#im_send").addEventListener("click", async e => {
+      const an = q("#im_an").value.trim(), b = e.currentTarget;
+      if (!an) return toast("Bitte Empfänger eintragen");
+      if (!confirm(`Info-Mail jetzt an ${an} senden?`)) return;
+      b.disabled = true; b.textContent = "Wird gesendet …";
+      try { await store.mailSenden({ lead_id: l.id, an, betreff: q("#im_b").value, text: q("#im_t").value }); toast("Info-Mail gesendet ✓"); schliessen(); }
+      catch (err) { b.disabled = false; b.textContent = "Direkt senden"; toast("Nicht gesendet: " + err.message); }
+    });
     try {
       const r = await Promise.race([store.kiAbsatz(l.id), new Promise((_, x) => setTimeout(() => x(new Error("Zeitüberschreitung")), 25000))]);
       if (r.absatz) { setzen(r.absatz); q("#im_ki").textContent = "✨ Persönlicher Absatz von Claude eingefügt (2. Absatz) – bei Bedarf einfach anpassen."; }
