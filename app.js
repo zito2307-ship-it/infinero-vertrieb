@@ -679,6 +679,7 @@
       ${darfWechseln() && andere.length ? `<h2 class="sec">Ansicht wechseln</h2><div class="actions">${andere.map(x => `<button class="btn" type="button" data-ansicht="${x.kuerzel}">Zu ${esc(x.name.split(" ")[0])}${x.rolle === "inhaber" ? " (Passwort)" : ""}</button>`).join("")}</div>
         <div id="pw" hidden><form id="pwf" class="form" style="margin-top:10px"><div class="field"><label for="pwi">Passwort</label><input id="pwi" type="password" autocomplete="off" autocapitalize="off"></div><div class="field" style="justify-content:flex-end"><button class="btn primary" type="submit">Öffnen</button></div></form></div>` : ""}
       <h2 class="sec">Benachrichtigungen</h2><div class="block" id="pushblock">${pushHTML()}</div>
+      ${store.mode === "live" ? `<h2 class="sec">Passwort ändern</h2><div class="block"><form id="pwneu" class="form"><div class="field"><label for="pn1">Neues Passwort</label><input id="pn1" type="password" autocomplete="new-password" minlength="8" required></div><div class="field" style="justify-content:flex-end"><button class="btn small" type="submit">Speichern</button></div></form></div>` : ""}
       <h2 class="sec">Darstellung</h2><div class="seg" role="group" aria-label="Design">
         <button type="button" data-theme-set="dark" aria-pressed="${aktuellesTheme() === "dark"}">Dunkel</button><button type="button" data-theme-set="light" aria-pressed="${aktuellesTheme() === "light"}">Hell</button></div>
       <h2 class="sec">App aufs Handy</h2><div class="block"><p class="hint" style="margin:0">iPhone (Safari): Teilen → „Zum Home-Bildschirm“. Android (Chrome): Menü ⋮ → „App installieren“.</p></div>
@@ -697,6 +698,8 @@
         else ansichtSetzen(x.kuerzel);
       }
     });
+    const pn = root.querySelector("#pwneu");
+    if (pn) pn.addEventListener("submit", async e => { e.preventDefault(); try { await store.passwortAendern(root.querySelector("#pn1").value); toast("Passwort geändert"); root.querySelector("#pn1").value = ""; } catch (err) { toast("Mindestens 8 Zeichen – bitte nochmal versuchen."); } });
     const f = root.querySelector("#pwf");
     if (f) f.addEventListener("submit", e => {
       e.preventDefault();
@@ -803,14 +806,17 @@
   // ---------------------------------------------------------------- Login & Start
   function login(hinweis) {
     $("#tabs").hidden = true; $("#fab").hidden = true; $("#me").hidden = true;
-    $("#view").innerHTML = `<div class="login"><h1>Anmelden</h1><p class="hint" style="font-size:14px">Gib deine E-Mail-Adresse ein. Du bekommst einen 6-stelligen Code per E-Mail.</p>
+    $("#view").innerHTML = `<div class="login"><h1>Anmelden</h1>
       ${hinweis ? `<div class="banner">${esc(hinweis)}</div>` : ""}
-      <form id="lf" class="form"><div class="field full"><label for="le">E-Mail</label><input id="le" type="email" inputmode="email" autocomplete="email" required></div>
-      <div class="full"><button class="btn primary block" type="submit">Code senden</button></div></form>
-      <form id="cf" class="form" hidden><div class="field full"><label for="lc">Code aus der E-Mail</label><input id="lc" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" required></div>
-      <div class="full"><button class="btn primary block" type="submit">Anmelden</button></div></form></div>`;
-    $("#lf").addEventListener("submit", async e => { e.preventDefault(); try { await store.sendCode($("#le").value.trim()); $("#lf").hidden = true; $("#cf").hidden = false; $("#lc").focus(); } catch (err) { toast("Code konnte nicht gesendet werden. Adresse prüfen."); } });
-    $("#cf").addEventListener("submit", async e => { e.preventDefault(); try { await store.verifyCode($("#le").value.trim(), $("#lc").value.trim()); start(); } catch (err) { toast("Code falsch oder abgelaufen."); } });
+      <form id="lf" class="form"><div class="field full"><label for="le">E-Mail</label><input id="le" type="email" inputmode="email" autocomplete="username" required></div>
+      <div class="field full"><label for="lp">Passwort</label><input id="lp" type="password" autocomplete="current-password" required></div>
+      <div class="full"><button class="btn primary block" type="submit">Anmelden</button></div></form>
+      <p class="hint">Passwort vergessen? Kurz bei Ziu melden – er setzt es zurück.</p></div>`;
+    $("#lf").addEventListener("submit", async e => {
+      e.preventDefault();
+      try { await store.anmelden($("#le").value.trim(), $("#lp").value); start(); }
+      catch (err) { toast("E-Mail oder Passwort stimmt nicht."); }
+    });
   }
   async function start() {
     let p; try { p = await store.session(); } catch (e) { fehler(e); }

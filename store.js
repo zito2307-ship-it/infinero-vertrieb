@@ -27,8 +27,8 @@
       this.profil = rows[0] || { ohneZugang: true, email: data.session.user.email };
       return this.profil;
     }
-    async sendCode(email) { await this._check(this.sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })); }
-    async verifyCode(email, token) { await this._check(this.sb.auth.verifyOtp({ email, token, type: "email" })); return this.session(); }
+    async anmelden(email, password) { await this._check(this.sb.auth.signInWithPassword({ email, password })); return this.session(); }
+    async passwortAendern(password) { await this._check(this.sb.auth.updateUser({ password })); }
     async signOut() { await this.sb.auth.signOut(); this.profil = null; }
     async team() { return this._check(this.sb.from("profiles").select("kuerzel,name,rolle,tagesziel").order("rolle", { ascending: false })); }
 
