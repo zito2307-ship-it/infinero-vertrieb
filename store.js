@@ -102,6 +102,7 @@
     async setDemoUrl(id, url) { await this._check(this.sb.from("zielgruppen").update({ demo_url: url || null }).eq("id", id)); }
     async setTerminLink(url) { await this._check(this.sb.from("vertrieb_config").update({ termin_link: url || null }).eq("id", 1)); }
     async calcomWebhook() { return this._check(this.sb.rpc("calcom_webhook")); }
+    async kiAbsatz(lead_id) { const { data, error } = await this.sb.functions.invoke("infomail", { body: { lead_id } }); if (error) throw error; return data || {}; }
     async setProfil(telefon, termin_link) { await this._check(this.sb.rpc("mein_profil_setzen", { p_telefon: telefon || "", p_termin_link: termin_link || "" })); }
     async statistikTage(von, bis) { return this._check(this.sb.rpc("statistik_tage", { p_von: von, p_bis: bis })); }
     async statistikGruppen(von, bis, dimension, nur) { return this._check(this.sb.rpc("statistik_gruppen", { p_von: von, p_bis: bis, dimension, nur: nur || null })); }
@@ -253,6 +254,7 @@
     async setFokus(fokus, auto) { Object.assign(this.d.config, { fokus, auto_wechsel: auto }); this._save(); }
     async setDemoUrl(id, url) { this.d.zielgruppen.find(z => z.id === id).demo_url = url || null; this._save(); }
     async setTerminLink(url) { this.d.config.termin_link = url || null; this._save(); }
+    async kiAbsatz() { await new Promise(r => setTimeout(r, 600)); return { absatz: "Schön, dass wir über Ihre Situation im Studio sprechen konnten – gerade weil viele Anfragen abends per WhatsApp kommen, während Sie noch bei der Kundin sind. Genau dafür haben wir Ihnen unten zusammengestellt, wie eine automatische Antwort und Terminbuchung bei Ihnen aussehen könnte. (Beispieltext im Demo-Modus)" }; }
     async calcomWebhook() { return { url: "https://DEMO.supabase.co/functions/v1/calcom", secret: "demo-geheimnis" }; }
     async setProfil(telefon, termin_link) { Object.assign(this.d.team.find(t => t.kuerzel === this.profil.kuerzel), { telefon: telefon || null, termin_link: termin_link || null }); this._save(); }
     _tageLive() {

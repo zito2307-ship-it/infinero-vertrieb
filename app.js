@@ -299,7 +299,7 @@
   }
   function schliessen(neu = true) { $("#sheet").innerHTML = ""; document.body.style.overflow = ""; if (neu) zeige(); }
 
-  function infoMail(l) {
+  function infoMail(l, ki) {
     const v = VORLAGEN[l.zielgruppe] || VORLAGEN.handwerk;
     const z = (S.zg || []).find(x => x.id === l.zielgruppe);
     const ich = (store.mode === "live" && S.team.find(t => t.kuerzel === S.profil.kuerzel)) || S.view;
@@ -311,6 +311,7 @@
     const teile = [
       l.ansprechpartner ? `Guten Tag ${l.ansprechpartner},` : "Guten Tag,",
       `vielen Dank für ${v.gespraech}${kollege} – ${v.danach.replace("{firma}", l.firma)}`,
+      ki || "",
       `${v.einleitung}\n\n${produkte}\n\n(alle Preise netto, zzgl. USt.)`,
       WARUM_MONATLICH,
       v.nutzen,
@@ -320,7 +321,32 @@
       v.stopp,
       ["Mit besten Grüßen", ich.name, ...SIGNATUR, [ich.telefon ? "Tel.: " + ich.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n"),
     ];
-    return `mailto:${encodeURIComponent(l.email || "")}?subject=${encodeURIComponent(v.betreff)}&body=${encodeURIComponent(teile.filter(Boolean).join("\n\n"))}`;
+    return { an: l.email || "", betreff: v.betreff, text: teile.filter(Boolean).join("\n\n") };
+  }
+  const mailtoVon = (an, betreff, text) => `mailto:${encodeURIComponent(an)}?subject=${encodeURIComponent(betreff)}&body=${encodeURIComponent(text)}`;
+
+  // Vorschau: Vorlage + persönlicher Absatz von Claude, vor dem Öffnen noch änderbar
+  async function infoMailSheet(id) {
+    let l; try { l = await store.lead(id); } catch (e) { return fehler(e); }
+    const root = sheet("Info-Mail · " + l.firma, `
+      <form id="imf" class="form">
+        <div class="field full"><label for="im_an">An</label><input id="im_an" type="email" value="${esc(l.email)}"></div>
+        <div class="field full"><label for="im_b">Betreff</label><input id="im_b"></div>
+        <div class="field full"><label for="im_t">Text</label><textarea id="im_t" rows="18"></textarea></div>
+        <p class="hint full" id="im_ki">✨ Claude schreibt den persönlichen Absatz …</p>
+        <div class="full actions"><a class="btn primary" id="im_open" href="#">In Mail-App öffnen</a><button class="btn" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>
+        <p class="hint full">Absender <b>kontakt@infinero.de</b> wählen. Nach dem Senden „Als gesendet markieren“.</p>
+      </form>`);
+    const q = s => root.querySelector(s);
+    const setzen = ki => { const d = infoMail(l, ki); q("#im_b").value = d.betreff; q("#im_t").value = d.text; aktualisieren(); };
+    const aktualisieren = () => { q("#im_open").href = mailtoVon(q("#im_an").value.trim(), q("#im_b").value, q("#im_t").value); };
+    ["#im_an", "#im_b", "#im_t"].forEach(s => q(s).addEventListener("input", aktualisieren));
+    setzen("");
+    try {
+      const r = await Promise.race([store.kiAbsatz(l.id), new Promise((_, x) => setTimeout(() => x(new Error("Zeitüberschreitung")), 25000))]);
+      if (r.absatz) { setzen(r.absatz); q("#im_ki").textContent = "✨ Persönlicher Absatz von Claude eingefügt (2. Absatz) – bei Bedarf einfach anpassen."; }
+      else q("#im_ki").textContent = "Ohne persönlichen Absatz (" + (r.grund || "keine Antwort") + ") – die Vorlage ist vollständig.";
+    } catch (e) { q("#im_ki").textContent = "Claude gerade nicht erreichbar – die Vorlage ist vollständig und kann so raus."; }
   }
 
   function infoSheet(id) {
@@ -459,7 +485,7 @@
         ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a></div>` : ""}
         ${l.website ? `<div class="kv">${webLink(l.website)}${WEB[l.website_bewertung] ? `<span class="pill ${WEB[l.website_bewertung][1]}">${WEB[l.website_bewertung][0]}</span>` : ""}</div>${l.website_befund ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}` : ""}
         ${l.email ? `<div class="kv"><span class="v">${esc(l.email)}</span>${l.einwilligung_email ? `<span class="pill ok">Einwilligung ${dDE(l.einwilligung_email)}</span>` : ""}</div>` : ""}
-        ${l.email && l.info_mail === "offen" ? `<div class="actions"><a class="btn small primary" href="${esc(infoMail(l))}">Info-Mail öffnen</a><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>` : ""}
+        ${l.email && l.info_mail === "offen" ? `<div class="actions"><button class="btn small primary" type="button" data-infomail="${l.id}">Info-Mail öffnen</button><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>` : ""}
         ${l.interesse_produkte && l.interesse_produkte.length ? `<div class="meta"><span>Interesse: ${esc(l.interesse_produkte.join(", "))}</span></div>` : ""}
         ${l.gesperrt ? `<div class="due">Keine Werbung – nicht mehr kontaktieren.</div>` : ""}
       </div>
@@ -693,7 +719,7 @@
       <h2 class="sec">Info-Mails offen <span class="n">${c.info.length}</span></h2>
       <div class="list">${c.info.length ? c.info.map(l => `<article class="card"><div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3><span class="pill accent">${esc((l.interesse_produkte || []).join(", ") || "allgemein")}</span></div>
         <div class="kv"><span class="v">${esc(l.email || "keine E-Mail")}</span></div>
-        <div class="actions">${l.email ? `<a class="btn small primary" href="${esc(infoMail(l))}">Mail öffnen</a>` : ""}<button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>
+        <div class="actions">${l.email ? `<button class="btn small primary" type="button" data-infomail="${l.id}">Mail öffnen</button>` : ""}<button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>
         <div class="meta"><span>${esc(l.ansprechpartner || "")}</span><span>Einwilligung ${dDE(l.einwilligung_email)}</span><span>${esc(name(l.owner))}</span></div></article>`).join("") : `<div class="empty">Keine offenen Info-Anfragen.</div>`}</div>
       <p class="hint">„Mail öffnen“ erstellt eine fertige, persönliche Mail in deiner Mail-App (Produkte mit Preisen, Demo-Link, Website-Befund). Absender <b>kontakt@infinero.de</b> wählen, kurz prüfen, senden, dann „Als gesendet markieren“.</p>
       <h2 class="sec">Demo-Websites <span class="n">${c.demo.length}</span></h2>
@@ -880,7 +906,8 @@
     if (ds.dodel) { try { await store.leadLoeschen(+ds.dodel); schliessen(); toast("Gelöscht"); } catch (err) { fehler(err); } return; }
     if (ds.terminok || ds.terminab) { try { await store.terminUpdate(+(ds.terminok || ds.terminab), { status: ds.terminok ? "erledigt" : "abgesagt" }); toast(ds.terminok ? "Termin erledigt" : "Termin abgesagt"); zeige(); } catch (err) { fehler(err); } return; }
     if (ds.pay || ds.payout) { try { await store.dealUpdate(+(ds.pay || ds.payout), { [ds.pay ? "zahlung_eingegangen" : "provision_ausgezahlt"]: isoDate(new Date()) }); toast("Eingetragen"); zeige(); } catch (err) { fehler(err); } return; }
-    if (ds.mailok) { try { await store.leadUpdate(+ds.mailok, { info_mail: "gesendet" }); await store.aktivitaet({ lead_id: +ds.mailok, typ: "mail", text: "Info-Mail gesendet" }); toast("Als gesendet markiert"); zeige(); } catch (err) { fehler(err); } return; }
+    if (ds.infomail) return infoMailSheet(+ds.infomail);
+    if (ds.mailok) { try { await store.leadUpdate(+ds.mailok, { info_mail: "gesendet" }); await store.aktivitaet({ lead_id: +ds.mailok, typ: "mail", text: "Info-Mail gesendet" }); toast("Als gesendet markiert"); schliessen(); } catch (err) { fehler(err); } return; }
     if (ds.demo) { try { await store.leadUpdate(id, { demo_website: ds.demo }); toast("Demo-Website: " + (ds.demo === "fertig" ? "fertig" : "in Arbeit")); zeige(); } catch (err) { fehler(err); } return; }
     if (ds.copy) { try { await navigator.clipboard.writeText(ds.copy); toast("Kopiert"); } catch (err) { toast(ds.copy); } return; }
     if (t.id === "more") { if (S.loadingMore) return; S.loadingMore = true; t.disabled = true; try { const n = await store.nachladen(schritt()); toast(n ? `${n} weitere Leads geladen` : "Der Pool ist gerade leer – Nachschub kommt über Nacht."); await zeige(); } catch (err) { fehler(err); } S.loadingMore = false; return; }
