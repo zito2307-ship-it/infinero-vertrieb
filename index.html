@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>INFINERO Vertrieb</title>
+<meta name="theme-color" content="#0D1218">
+<script>(function(){var t="dark";try{t=localStorage.getItem("infinero-theme")||"dark"}catch(e){}document.documentElement.dataset.theme=t;})();</script>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Vertrieb">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap" id="app">
+  <header class="top">
+    <div class="brand">INFINERO Vertrieb<small id="sub">Anrufen · Termine · Abschlüsse</small></div>
+    <button class="me icon" id="theme" type="button" aria-label="Hell/Dunkel umschalten" hidden><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z"/></svg></button>
+    <button class="me" id="me" type="button" hidden></button>
+  </header>
+  <div id="banner"></div>
+  <main id="view"><div class="empty">Lädt …</div></main>
+</div>
+<button class="fab" id="fab" type="button" hidden>+ Lead</button>
+<nav class="tabs" id="tabs" aria-label="Bereiche" hidden><div class="in" role="tablist" id="tablist"></div></nav>
+<div id="sheet"></div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script src="config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="store.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
