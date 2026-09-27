@@ -334,7 +334,7 @@
         <label class="check full"><input id="i_ok" type="checkbox" required><span>Der Kontakt hat zugestimmt, dass wir ihm Infos per E-Mail schicken.</span></label>
         <div class="field full"><label for="i_n">Notiz</label><input id="i_n" placeholder="z. B. will Preise für Website + Chatbot"></div>
         <div class="full"><button class="btn primary block" type="submit">Speichern</button></div>
-      </form><p class="hint">Danach im Lead auf „Info-Mail öffnen“ tippen – die fertige Mail (Vorlage der Zielgruppe mit Produkten, Preisen und Demo-Link) öffnet sich in der Mail-App. Offene Mails sieht Ziu auch im Cockpit.</p>`);
+      </form><p class="hint">Danach im Lead auf „Info-Mail öffnen“ tippen – die fertige Mail (Vorlage der Zielgruppe mit Produkten, Preisen und Demo-Link) öffnet sich in der Mail-App. Als Absender immer <b>kontakt@infinero.de</b> wählen. Offene Mails sieht Ziu auch im Cockpit.</p>`);
     root.querySelector("#f").addEventListener("submit", async e => {
       e.preventDefault();
       const f = root; const prods = gewaehlt(f);
@@ -695,7 +695,7 @@
         <div class="kv"><span class="v">${esc(l.email || "keine E-Mail")}</span></div>
         <div class="actions">${l.email ? `<a class="btn small primary" href="${esc(infoMail(l))}">Mail öffnen</a>` : ""}<button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>
         <div class="meta"><span>${esc(l.ansprechpartner || "")}</span><span>Einwilligung ${dDE(l.einwilligung_email)}</span><span>${esc(name(l.owner))}</span></div></article>`).join("") : `<div class="empty">Keine offenen Info-Anfragen.</div>`}</div>
-      <p class="hint">„Mail öffnen“ erstellt eine fertige, persönliche Mail in deiner Mail-App (Produkte mit Preisen, Demo-Link, Website-Befund). Kurz prüfen, senden, dann „Als gesendet markieren“.</p>
+      <p class="hint">„Mail öffnen“ erstellt eine fertige, persönliche Mail in deiner Mail-App (Produkte mit Preisen, Demo-Link, Website-Befund). Absender <b>kontakt@infinero.de</b> wählen, kurz prüfen, senden, dann „Als gesendet markieren“.</p>
       <h2 class="sec">Demo-Websites <span class="n">${c.demo.length}</span></h2>
       <div class="list">${c.demo.length ? c.demo.map(l => `<article class="card"><div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3><span class="pill ${l.demo_website === "offen" ? "warn" : "accent"}">${l.demo_website === "offen" ? "offen" : "in Arbeit"}</span></div>
         <div class="meta"><span>${esc(l.branche || "")}</span><span>${esc(l.ort || "")}</span>${l.website ? `<span>${webLink(l.website)}</span>` : ""}<span>${esc(l.naechster_schritt || "")}</span></div>
