@@ -30,7 +30,7 @@
     async anmelden(email, password) { await this._check(this.sb.auth.signInWithPassword({ email, password })); return this.session(); }
     async passwortAendern(password) { await this._check(this.sb.auth.updateUser({ password })); }
     async signOut() { await this.sb.auth.signOut(); this.profil = null; }
-    async team() { return this._check(this.sb.from("profiles").select("kuerzel,name,rolle,tagesziel").order("rolle", { ascending: false })); }
+    async team() { return this._check(this.sb.from("profiles").select("kuerzel,name,rolle,tagesziel,telefon").order("rolle", { ascending: false })); }
 
     async tageslisteStart() { return this._check(this.sb.rpc("tagesliste_start")); }
     async nachladen(n) { return this._check(this.sb.rpc("leads_nachladen", { anzahl: n, fuer: this.k })); }
@@ -100,6 +100,8 @@
     async vertriebConfig() { return (await this._check(this.sb.from("vertrieb_config").select("*").eq("id", 1)))[0] || { fokus: "handwerk" }; }
     async setFokus(fokus, auto) { await this._check(this.sb.from("vertrieb_config").update({ fokus, auto_wechsel: auto, fokus_seit: new Date().toISOString().slice(0, 10) }).eq("id", 1)); }
     async setDemoUrl(id, url) { await this._check(this.sb.from("zielgruppen").update({ demo_url: url || null }).eq("id", id)); }
+    async setTerminLink(url) { await this._check(this.sb.from("vertrieb_config").update({ termin_link: url || null }).eq("id", 1)); }
+    async setTelefon(tel) { await this._check(this.sb.rpc("mein_telefon_setzen", { p_telefon: tel || "" })); this.profil.telefon = tel || null; }
     async statistikTage(von, bis) { return this._check(this.sb.rpc("statistik_tage", { p_von: von, p_bis: bis })); }
     async statistikGruppen(von, bis, dimension, nur) { return this._check(this.sb.rpc("statistik_gruppen", { p_von: von, p_bis: bis, dimension, nur: nur || null })); }
     async pushSchluessel() { const { data, error } = await this.sb.functions.invoke("push", { body: { setup: true } }); if (error) throw error; return data.publicKey; }
@@ -249,6 +251,8 @@
     async vertriebConfig() { return this.d.config; }
     async setFokus(fokus, auto) { Object.assign(this.d.config, { fokus, auto_wechsel: auto }); this._save(); }
     async setDemoUrl(id, url) { this.d.zielgruppen.find(z => z.id === id).demo_url = url || null; this._save(); }
+    async setTerminLink(url) { this.d.config.termin_link = url || null; this._save(); }
+    async setTelefon(tel) { this.d.team.find(t => t.kuerzel === this.profil.kuerzel).telefon = tel || null; this._save(); }
     _tageLive() {
       const m = {};
       const add = (tag, k, f, v = 1) => { const x = (m[tag + k] ||= { tag, kuerzel: k, anrufe: 0, erreicht: 0, infos: 0, interesse: 0, termine: 0, abschluesse: 0, setup: 0 }); x[f] += v; };
