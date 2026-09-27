@@ -75,6 +75,10 @@
   const dDE = s => { if (!s) return ""; const d = new Date(s); return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }); };
   const tagDE = d => d.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
   const telHref = t => "tel:" + String(t || "").replace(/[^\d+]/g, "");
+  const webHref = w => (/^https?:\/\//i.test(w = String(w || "").trim()) ? w : "https://" + w);
+  const webText = w => String(w || "").trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/[/?#].*$/, "");
+  const webLink = w => `<a class="web" href="${esc(webHref(w))}" target="_blank" rel="noopener">${esc(webText(w))} ↗</a>`;
+  const WEB = { keine: ["keine Website", "accent"], veraltet: ["Website veraltet", "warn"], unklar: ["Alter unklar", ""], ok: ["Website modern", ""] };
   const istHeute = s => s && isoDate(new Date(s)) === isoDate(new Date());
   function naechsterWerktag(tage = 1, h = 9, m = 0) {
     const d = new Date(); let n = 0;
@@ -152,15 +156,16 @@
   // ---------------------------------------------------------------- Heute
   function callCard(l, opts = {}) {
     const st = STATUS[l.status] || [l.status, ""];
-    const web = l.website_bewertung === "keine" || !l.website ? `<span class="pill accent">keine Website</span>` : l.website_bewertung === "veraltet" ? `<span class="pill warn">Website veraltet</span>` : l.website_bewertung === "ok" ? `<span class="pill">Website modern</span>` : "";
+    const wb = !l.website ? WEB.keine : WEB[l.website_bewertung];
+    const web = wb ? `<span class="pill ${wb[1]}">${wb[0]}</span>` : "";
     const wv = l.wiedervorlage ? new Date(l.wiedervorlage) : null;
     return `<article class="card${opts.prio ? " prio" : ""}" data-card="${l.id}">
       <div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3>${l.status !== "neu" ? `<span class="pill ${st[1]}">${st[0]}</span>` : web}</div>
       <div class="meta">${l.branche ? `<span>${esc(l.branche)}</span>` : ""}${l.ort ? `<span>${esc(l.ort)}</span>` : ""}${l.versuche ? `<span>Versuch ${l.versuche + 1}</span>` : ""}${wv ? `<span class="${wv < new Date() ? "due" : ""}">${istHeute(l.wiedervorlage) ? "heute " + hhmm(wv) : dDE(l.wiedervorlage) + " " + hhmm(wv)}</span>` : ""}${l.status !== "neu" ? web : ""}</div>
       ${l.naechster_schritt ? `<div class="meta"><span>${esc(l.naechster_schritt)}</span></div>` : ""}
-      ${l.website_befund && l.website_bewertung === "veraltet" ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}
+      ${l.website_befund && ["veraltet", "unklar"].includes(l.website_bewertung) ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}
       ${(() => { const z = (S.zg || []).find(x => x.id === l.zielgruppe); return z && z.demo_url ? `<div class="demo"><span>Demo ${esc(z.name)}:</span> <a href="${esc(z.demo_url)}" target="_blank" rel="noopener">${esc(z.demo_url.replace(/^https?:\/\//, ""))}</a> <button class="btn small" type="button" data-copy="${esc(z.demo_url)}">Link kopieren</button></div>` : ""; })()}
-      ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a>${l.website ? `<a href="https://${esc(l.website)}" target="_blank" rel="noopener">${esc(l.website)}</a>` : ""}</div>` : `<div class="meta"><span class="due">Keine Telefonnummer</span></div>`}
+      ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a>${l.website ? webLink(l.website) : ""}</div>` : `<div class="meta"><span class="due">Keine Telefonnummer</span>${l.website ? webLink(l.website) : ""}</div>`}
       <div class="outcomes">
         <button class="oc n" type="button" data-oc="nicht" data-id="${l.id}">Nicht erreicht</button>
         <button class="oc k" type="button" data-oc="kein" data-id="${l.id}">Kein Interesse</button>
@@ -387,6 +392,7 @@
       <div class="block">
         <div class="kv"><span class="pill ${st[1]}">${st[0]}</span><span class="meta">${esc(l.lead_nr || "")} · ${esc(l.owner ? name(l.owner) : "Pool")}${l.versuche ? " · " + l.versuche + " Versuche" : ""}</span></div>
         ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a></div>` : ""}
+        ${l.website ? `<div class="kv">${webLink(l.website)}${WEB[l.website_bewertung] ? `<span class="pill ${WEB[l.website_bewertung][1]}">${WEB[l.website_bewertung][0]}</span>` : ""}</div>${l.website_befund ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}` : ""}
         ${l.email ? `<div class="kv"><span class="v">${esc(l.email)}</span>${l.einwilligung_email ? `<span class="pill ok">Einwilligung ${dDE(l.einwilligung_email)}</span>` : ""}</div>` : ""}
         ${l.interesse_produkte && l.interesse_produkte.length ? `<div class="meta"><span>Interesse: ${esc(l.interesse_produkte.join(", "))}</span></div>` : ""}
         ${l.gesperrt ? `<div class="due">Keine Werbung – nicht mehr kontaktieren.</div>` : ""}
@@ -621,7 +627,7 @@
       <p class="hint">Später übernimmt das der E-Mail-Assistent automatisch. Bis dahin hier abarbeiten.</p>
       <h2 class="sec">Demo-Websites <span class="n">${c.demo.length}</span></h2>
       <div class="list">${c.demo.length ? c.demo.map(l => `<article class="card"><div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3><span class="pill ${l.demo_website === "offen" ? "warn" : "accent"}">${l.demo_website === "offen" ? "offen" : "in Arbeit"}</span></div>
-        <div class="meta"><span>${esc(l.branche || "")}</span><span>${esc(l.ort || "")}</span>${l.website ? `<span>${esc(l.website)}</span>` : ""}<span>${esc(l.naechster_schritt || "")}</span></div>
+        <div class="meta"><span>${esc(l.branche || "")}</span><span>${esc(l.ort || "")}</span>${l.website ? `<span>${webLink(l.website)}</span>` : ""}<span>${esc(l.naechster_schritt || "")}</span></div>
         <div class="actions">${l.demo_website === "offen" ? `<button class="btn small" type="button" data-demo="in_arbeit" data-id="${l.id}">In Arbeit</button>` : ""}<button class="btn small" type="button" data-demo="fertig" data-id="${l.id}">Fertig</button></div></article>`).join("") : `<div class="empty">Keine Demo-Websites angefragt.</div>`}</div>
       <h2 class="sec">Lead-Nachschub</h2>
       <div class="block"><div class="kv"><span>Leads im Pool (noch niemandem zugeteilt)</span><b class="money">${c.pool}</b></div>
