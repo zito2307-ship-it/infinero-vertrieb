@@ -307,7 +307,7 @@
     const prods = (l.interesse_produkte || []).filter(c => MAILTEXT[c]);
     const produkte = (prods.length ? prods : ["WEBSITE"]).map(c => { const [t, d, e, m] = MAILTEXT[c]; return `• ${t} – ${d}\n  Einrichtung ${euro(e)}, danach ${euro(m)} im Monat`; }).join("\n\n");
     const kollege = l.owner && l.owner !== ich.kuerzel ? ` mit meinem Kollegen ${name(l.owner)}` : "";
-    const link = S.cfg && S.cfg.termin_link;
+    const link = ich.termin_link || (S.cfg && S.cfg.termin_link);
     const teile = [
       l.ansprechpartner ? `Guten Tag ${l.ansprechpartner},` : "Guten Tag,",
       `vielen Dank für ${v.gespraech}${kollege} – ${v.danach.replace("{firma}", l.firma)}`,
@@ -683,10 +683,10 @@
       <div class="block"><form id="demof" class="form">${zg.map(z => `<div class="field full"><label for="du_${z.id}">${esc(z.name)}</label><input id="du_${z.id}" data-demo-url="${z.id}" type="url" inputmode="url" placeholder="https://infinero.de/…" value="${esc(z.demo_url)}"></div>`).join("")}
         <div class="full"><button class="btn small" type="submit">Links speichern</button></div></form>
         <p class="hint">Der passende Link erscheint auf jeder Anrufkarte und in den Info-Mails – Elias kann ihn direkt kopieren und schicken.</p></div>
-      <h2 class="sec">Link zur Terminbuchung</h2>
-      <div class="block"><form id="terminf" class="form"><div class="field full"><label for="tl">Online-Terminbuchung (z. B. Calendly, Cal.com)</label><input id="tl" type="url" inputmode="url" placeholder="https://…" value="${esc(cfg.termin_link)}"></div>
+      <h2 class="sec">Standard-Link zur Terminbuchung</h2>
+      <div class="block"><form id="terminf" class="form"><div class="field full"><label for="tl">Nur falls jemand keinen eigenen Link im Profil hat</label><input id="tl" type="url" inputmode="url" placeholder="https://…" value="${esc(cfg.termin_link)}"></div>
         <div class="full"><button class="btn small" type="submit">Speichern</button></div></form>
-        <p class="hint">Steht in jeder Info-Mail („👉 Termin buchen“). Ohne Link bittet die Mail um eine Antwort mit Wunschtermin.</p></div>
+        <p class="hint">Jeder trägt seinen eigenen Cal.com-Link im Profil ein (Name oben rechts) – die Mail nimmt den Link des Absenders. Ohne Link bittet die Mail um eine Antwort mit Wunschtermin.</p></div>
       <h2 class="sec">Heute im Team</h2>
       <div class="block tablewrap"><table class="stats"><thead><tr><th>Wer</th><th>Anrufe</th><th>N.&nbsp;err.</th><th>Nein</th><th>Info</th><th>Ja</th></tr></thead>
       <tbody>${rows.length ? rows.map(([k, s]) => `<tr><td>${esc(name(k))}</td><td>${s.anrufe}</td><td>${s.nicht}</td><td>${s.kein}</td><td>${s.info}</td><td>${s.pos}</td></tr>`).join("") : `<tr><td colspan="6">Heute noch keine Anrufe erfasst.</td></tr>`}</tbody></table></div>
@@ -755,7 +755,12 @@
       <div class="kv"><span>Neue Leads pro Tag</span><span>${S.view.tagesziel ?? 100} · nachladen in ${schritt()}er-Schritten</span></div></div>
       ${darfWechseln() && andere.length ? `<h2 class="sec">Ansicht wechseln</h2><div class="actions">${andere.map(x => `<button class="btn" type="button" data-ansicht="${x.kuerzel}">Zu ${esc(x.name.split(" ")[0])}${x.rolle === "inhaber" ? " (Passwort)" : ""}</button>`).join("")}</div>
         <div id="pw" hidden><form id="pwf" class="form" style="margin-top:10px"><div class="field"><label for="pwi">Passwort</label><input id="pwi" type="password" autocomplete="off" autocapitalize="off"></div><div class="field" style="justify-content:flex-end"><button class="btn primary" type="submit">Öffnen</button></div></form></div>` : ""}
-      <h2 class="sec">Meine Telefonnummer</h2><div class="block"><form id="telf" class="form"><div class="field"><label for="tel1">Für die Signatur der Info-Mails</label><input id="tel1" type="tel" inputmode="tel" placeholder="z. B. 0151 23456789" value="${esc((S.team.find(t => t.kuerzel === S.profil.kuerzel) || {}).telefon || "")}"></div><div class="field" style="justify-content:flex-end"><button class="btn small" type="submit">Speichern</button></div></form></div>
+      ${(() => { const me = S.team.find(t => t.kuerzel === S.profil.kuerzel) || {}; return `<h2 class="sec">Für meine Info-Mails</h2><div class="block"><form id="telf" class="form">
+        <div class="field"><label for="tel1">Meine Telefonnummer</label><input id="tel1" type="tel" inputmode="tel" placeholder="z. B. 0151 23456789" value="${esc(me.telefon)}"></div>
+        <div class="field full"><label for="tl1">Mein Link zur Terminbuchung (Cal.com)</label><input id="tl1" type="url" inputmode="url" placeholder="https://cal.com/…" value="${esc(me.termin_link)}"></div>
+        <div class="full"><button class="btn small" type="submit">Speichern</button></div></form>
+        <p class="hint">Beides steht in den Info-Mails, die du verschickst – Kunden buchen damit direkt in deinem Kalender.</p>
+        <details id="calcom"><summary>Cal.com mit der App verbinden (einmalig)</summary><div id="calcomin" class="hint">Lädt …</div></details></div>`; })()}
       <h2 class="sec">Benachrichtigungen</h2><div class="block" id="pushblock">${pushHTML()}</div>
       ${store.mode === "live" ? `<h2 class="sec">Passwort ändern</h2><div class="block"><form id="pwneu" class="form"><div class="field"><label for="pn1">Neues Passwort</label><input id="pn1" type="password" autocomplete="new-password" minlength="8" required></div><div class="field" style="justify-content:flex-end"><button class="btn small" type="submit">Speichern</button></div></form></div>` : ""}
       <h2 class="sec">Darstellung</h2><div class="seg" role="group" aria-label="Design">
@@ -776,7 +781,18 @@
         else ansichtSetzen(x.kuerzel);
       }
     });
-    root.querySelector("#telf").addEventListener("submit", async e => { e.preventDefault(); try { await store.setTelefon(root.querySelector("#tel1").value.trim()); S.team = await store.team(); toast("Telefonnummer gespeichert"); } catch (err) { fehler(err); } });
+    root.querySelector("#calcom").addEventListener("toggle", async e => {
+      if (!e.target.open || e.target.dataset.geladen) return;
+      try { const w = await store.calcomWebhook(); e.target.dataset.geladen = "1";
+        root.querySelector("#calcomin").innerHTML = `<ol style="padding-left:18px;margin:8px 0">
+          <li>Cal.com → Einstellungen → Entwickler → <b>Webhooks</b> → „Neu“</li>
+          <li>Abonnenten-URL: <code style="word-break:break-all">${esc(w.url)}</code> <button class="btn small" type="button" data-copy="${esc(w.url)}">Kopieren</button></li>
+          <li>Geheimnis (Secret): <code style="word-break:break-all">${esc(w.secret)}</code> <button class="btn small" type="button" data-copy="${esc(w.secret)}">Kopieren</button></li>
+          <li>Ereignisse: <b>Buchung erstellt, verschoben, storniert</b> → Speichern</li></ol>
+          Danach landet jede Online-Buchung automatisch als Termin in der App (mit Push). Erinnerungen kommen morgens um 7 Uhr und 60 Minuten vor jedem Termin.`;
+      } catch (err) { root.querySelector("#calcomin").textContent = "Konnte nicht geladen werden."; }
+    });
+    root.querySelector("#telf").addEventListener("submit", async e => { e.preventDefault(); try { await store.setProfil(root.querySelector("#tel1").value.trim(), root.querySelector("#tl1").value.trim()); S.team = await store.team(); toast("Gespeichert"); } catch (err) { fehler(err); } });
     const pn = root.querySelector("#pwneu");
     if (pn) pn.addEventListener("submit", async e => { e.preventDefault(); try { await store.passwortAendern(root.querySelector("#pn1").value); toast("Passwort geändert"); root.querySelector("#pn1").value = ""; } catch (err) { toast("Mindestens 8 Zeichen – bitte nochmal versuchen."); } });
     const f = root.querySelector("#pwf");
