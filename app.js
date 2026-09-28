@@ -362,6 +362,53 @@
     } catch (e) { q("#im_ki").textContent = "Claude gerade nicht erreichbar – die Vorlage ist vollständig und kann so raus."; }
   }
 
+  // Online-Auftrag: Link zur Auftragsseite (Angebot → Zustimmung → Zahlung über Stripe)
+  const auftragLink = a => new URL("auftrag.html?t=" + encodeURIComponent(a.token || ""), location.href).href;
+  function auftragMail(a) {
+    const l = a.lead || {};
+    const ich = (store.mode === "live" && S.team.find(t => t.kuerzel === S.profil.kuerzel)) || S.view;
+    const p = (PRODUKTE.find(x => x.code === a.produkt) || {}).name || a.produkt;
+    const text = [
+      l.ansprechpartner ? `Guten Tag ${l.ansprechpartner},` : "Guten Tag,",
+      "vielen Dank für Ihre Zusage – wir freuen uns sehr auf die Zusammenarbeit!",
+      `Unter folgendem Link finden Sie Ihr Angebot (${p}) mit allen Konditionen. Dort können Sie den Auftrag mit wenigen Klicks erteilen und Ihre Zahlungsart hinterlegen (SEPA-Lastschrift oder Karte):\n👉 ${auftragLink(a)}`,
+      "Sobald der Auftrag da ist, melden wir uns für ein kurzes Onboarding-Gespräch, in dem wir alles für Ihre Website besprechen.",
+      "Bei Fragen erreichen Sie mich jederzeit.",
+      ["Mit besten Grüßen", ich.name, ...SIGNATUR, [ich.telefon ? "Tel.: " + ich.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n"),
+    ].join("\n\n");
+    return { an: l.email || "", betreff: `Ihr Auftrag bei INFINERO – ${l.firma || p}`, text };
+  }
+  function auftragMailSheet(a) {
+    const l = a.lead || {}, m = auftragMail(a), link = auftragLink(a);
+    const root = sheet("Online-Auftrag · " + (l.firma || ""), `
+      <form class="form">
+        <div class="field full"><label for="am_an">An</label><input id="am_an" type="email" value="${esc(m.an)}"></div>
+        <div class="field full"><label for="am_b">Betreff</label><input id="am_b" value="${esc(m.betreff)}"></div>
+        <div class="field full"><label for="am_t">Text</label><textarea id="am_t" rows="14">${esc(m.text)}</textarea></div>
+        <div class="full actions" id="am_direkt" hidden><button class="btn primary" type="button" id="am_send">Direkt senden</button></div>
+        <div class="full actions"><a class="btn" id="am_open" href="#">In Mail-App öffnen</a><button class="btn" type="button" id="am_copy">Nur Link kopieren</button></div>
+        <p class="hint full">Der Kunde sieht Angebot und Konditionen, stimmt zu und hinterlegt die Zahlung bei Stripe. Danach steht der Auftrag hier automatisch auf „Beauftragt“ – mit Abschluss und Provision.</p>
+      </form>`);
+    const q = x => root.querySelector(x);
+    const aktualisieren = () => { q("#am_open").href = mailtoVon(q("#am_an").value.trim(), q("#am_b").value, q("#am_t").value); };
+    ["#am_an", "#am_b", "#am_t"].forEach(x => q(x).addEventListener("input", aktualisieren)); aktualisieren();
+    const verschickt = async () => { if (a.stufe === "zusage") { await store.auftragUpdate(a.id, { stufe: "auftrag_raus", gesendet_am: new Date().toISOString() }); a.stufe = "auftrag_raus"; } };
+    store.mailBereit().then(ok => { if (ok) { q("#am_direkt").hidden = false; } else q("#am_open").classList.add("primary"); });
+    q("#am_send").addEventListener("click", async e => {
+      const an = q("#am_an").value.trim(), b = e.currentTarget;
+      if (!an) return toast("Bitte Empfänger eintragen");
+      if (!confirm(`Online-Auftrag jetzt an ${an} senden?`)) return;
+      b.disabled = true; b.textContent = "Wird gesendet …";
+      try { await store.mailSenden({ lead_id: a.lead_id, an, betreff: q("#am_b").value, text: q("#am_t").value, art: "auftrag" }); await verschickt(); toast("Online-Auftrag gesendet ✓"); schliessen(false); zeige("auftraege"); }
+      catch (err) { b.disabled = false; b.textContent = "Direkt senden"; toast("Nicht gesendet: " + err.message); }
+    });
+    q("#am_open").addEventListener("click", () => { verschickt().catch(() => {}); });
+    q("#am_copy").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(link); toast("Link kopiert – z. B. per WhatsApp schicken"); } catch (err) { prompt("Link kopieren:", link); }
+      verschickt().catch(() => {});
+    });
+  }
+
   function infoSheet(id) {
     const l = findLead(id);
     const root = sheet("Infos per Mail · " + l.firma, `
@@ -712,6 +759,9 @@
         return `<section class="spalte" aria-label="${esc(t)}"><h3>${esc(t)} <span class="n">${xs.length}</span></h3>${xs.map(auftragCard).join("") || `<div class="leer">–</div>`}</section>`; }).join("")}</div>
       ${as.length > aktiv.length ? `<p class="hint">${as.length - aktiv.length} stornierte Aufträge ausgeblendet.</p>` : ""}`;
   }
+  const ZAHLUNG = { offen: "offen", bezahlt: "bezahlt ✓", fehlgeschlagen: "fehlgeschlagen ⚠" };
+  const ABO = { aktiv: "aktiv", gekuendigt: "gekündigt", beendet: "beendet" };
+  const RSTATUS = { paid: "bezahlt", open: "offen", draft: "Entwurf", void: "storniert", uncollectible: "uneinbringlich" };
   async function auftragSheet(id) {
     let a; try { a = await store.auftrag(id); } catch (e) { return fehler(e); }
     const l = a.lead || {}, i = STUFEN.findIndex(x => x[0] === a.stufe), naechste = NAECHSTE[a.stufe];
@@ -727,6 +777,9 @@
         <div class="kv"><span>Vertriebler</span><span>${esc(name(a.vertriebler))}${a.tippgeber ? " · Tipp: " + esc(a.tippgeber) : ""}</span></div>
         <div class="kv"><span>Zusage</span><span>${dDE(a.erstellt_am)}${a.beauftragt_am ? ` · beauftragt ${dDE(a.beauftragt_am)}` : ""}${a.live_am ? ` · live ${dDE(a.live_am)}` : ""}</span></div>
         ${a.notiz ? `<div class="meta"><span>${esc(a.notiz)}</span></div>` : ""}
+        ${a.zahlung_status || a.abo_status ? `<div class="kv"><span>Zahlung</span><span>${esc(ZAHLUNG[a.zahlung_status] || a.zahlung_status || "–")}${a.abo_status ? " · Abo " + esc(ABO[a.abo_status] || a.abo_status) : ""}</span></div>` : ""}
+        ${a.beauftragt_name && a.zustimmung ? `<div class="kv"><span>Online zugestimmt</span><span>${esc(a.beauftragt_name)} · ${dDE(a.zustimmung.zeit)}</span></div>` : ""}
+        <div id="rechnungen"></div>
       </div>
       <div class="block">
         <div class="kv"><b>${esc(l.firma || "")}</b><button class="btn small" type="button" data-open="${l.id}">Lead öffnen</button></div>
@@ -734,19 +787,24 @@
         ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a>${l.email ? `<span class="v">${esc(l.email)}</span>` : ""}</div>` : ""}
       </div>
       ${a.stufe === "storniert" ? "" : `<h2 class="sec">Nächster Schritt</h2><div class="block">
-        ${["zusage", "auftrag_raus"].includes(a.stufe) ? `<p class="hint" style="margin:0 0 8px">Der Online-Auftrag per Link kommt als Nächstes. Bis dahin: Vertrag als PDF schicken und hier bestätigen, sobald er unterschrieben zurück ist.</p>
-          <div class="actions">${a.stufe === "zusage" ? `<button class="btn" type="button" data-stufe="auftrag_raus" data-aid="${a.id}">Auftrag ist verschickt</button>` : ""}
-          <button class="btn primary" type="button" data-beauftragen="${a.id}">Kunde hat beauftragt</button></div>`
+        ${["zusage", "auftrag_raus"].includes(a.stufe) ? `<p class="hint" style="margin:0 0 8px">${a.stufe === "zusage" ? "Schick dem Kunden den Online-Auftrag: Er sieht das Angebot, stimmt zu und hinterlegt die Zahlung – der Rest läuft automatisch." : `Online-Auftrag ist raus${a.gesendet_am ? " seit " + dDE(a.gesendet_am) : ""}. Sobald der Kunde bezahlt/zustimmt, springt der Auftrag von selbst auf „Beauftragt“.`}</p>
+          <div class="actions"><button class="btn primary" type="button" data-online="${a.id}">${a.stufe === "zusage" ? "Online-Auftrag senden" : "Link erneut senden"}</button></div>
+          <details class="hint"><summary>Anders beauftragt (Papier/PDF)?</summary><div class="actions" style="margin-top:8px"><button class="btn small" type="button" data-beauftragen="${a.id}">Kunde hat beauftragt</button></div></details>`
         : naechste ? `<div class="actions"><button class="btn primary" type="button" data-stufe="${naechste}" data-aid="${a.id}">${esc(WEITER_TEXT[a.stufe])}</button></div>`
         : `<p class="hint" style="margin:0">Fertig – der Kunde ist live. 🎉</p>`}
         ${a.stufe === "beauftragt" ? `<p class="hint">Der Fragenkatalog fürs Onboarding-Gespräch kommt hier als Formular hinein, sobald Ziu ihn freigegeben hat.</p>` : ""}
         <div class="actions">${kannZurueck ? `<button class="btn small" type="button" data-stufe="${STUFEN[i - 1][0]}" data-aid="${a.id}">Eine Stufe zurück</button>` : ""}
           ${kannStorno ? `<button class="btn small danger" type="button" data-stornieren="${a.id}">Stornieren</button>` : ""}</div>
       </div>`}`);
+    if (inhaber() && (a.stripe_customer_id || a.zahlung_status)) store.rechnungen(a.id).then(rs => {
+      const z = root.querySelector("#rechnungen"); if (!z || !rs.length) return;
+      z.innerHTML = rs.map(r => `<div class="kv"><span>${esc(r.nummer || "Rechnung")} · ${dDE(r.datum)}</span><span class="money">${eur(r.brutto)} · ${esc(RSTATUS[r.status] || r.status)}${r.pdf_url ? ` · <a href="${esc(r.pdf_url)}" target="_blank" rel="noopener">PDF</a>` : ""}</span></div>`).join("");
+    }).catch(() => {});
     root.addEventListener("click", async e => {
       const b = e.target.closest("button"); if (!b) return;
       const d = b.dataset;
       if (d.stufe) { e.stopPropagation(); await stufeSetzen(a, d.stufe); }
+      if (d.online) { e.stopPropagation(); auftragMailSheet(a); return; }
       if (d.beauftragen) { e.stopPropagation(); if (confirm(`${l.firma} hat verbindlich beauftragt (${a.produkt}, ${eur(a.setup)})? Damit gilt es als Abschluss.`)) await beauftragen(a); }
       if (d.stornieren) { e.stopPropagation(); if (confirm("Auftrag wirklich stornieren?" + (a.abschluss_id ? " Der Abschluss bleibt bestehen – bei Bedarf Storno im Vault anlegen." : ""))) await stufeSetzen(a, "storniert"); }
     });

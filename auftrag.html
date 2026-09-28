@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<title>Ihr Auftrag · INFINERO</title>
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{--bg:#EEF1F5;--surface:#fff;--surface-2:#F5F7FA;--line:#D8DEE6;--ink:#141C26;--muted:#5A6878;--accent:#2F55D4;--accent-soft:#E3E9FB;
+  --ok:#1B7F4B;--ok-soft:#DDF2E6;--warn:#955F00;--warn-soft:#FBEFD5;--bad:#B42318;--bad-soft:#FBE3E1;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;--body:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+[hidden]{display:none!important}
+a{color:var(--accent)}
+.wrap{max-width:680px;margin:0 auto;padding:24px 16px 64px}
+.brand{font:700 22px/1 var(--display);letter-spacing:-.01em}
+.brand small{display:block;font:500 11px/1.4 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+h1{font:700 28px/1.15 var(--display);letter-spacing:-.015em;margin:28px 0 6px}
+h2{font:600 18px/1.3 var(--display);margin:0 0 10px}
+.lead{color:var(--muted);margin:0 0 20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0;box-shadow:0 1px 2px rgba(20,28,38,.05)}
+.hinweis{border-radius:10px;padding:10px 14px;font-size:14px;margin:14px 0}
+.hinweis.test{background:var(--warn-soft);color:var(--warn)}
+.hinweis.fehler{background:var(--bad-soft);color:var(--bad)}
+.zeile{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--line)}
+.zeile:first-of-type{border-top:0}
+.zeile span:last-child{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.zeile.summe{font-weight:600}
+.klein{font-size:13px;color:var(--muted)}
+ul.haken{margin:8px 0 0;padding:0;list-style:none}
+ul.haken li{padding-left:24px;position:relative;margin:6px 0}
+ul.haken li::before{content:"✓";position:absolute;left:2px;color:var(--ok);font-weight:600}
+details{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+details summary{cursor:pointer;font-weight:500}
+details ol{padding-left:20px;font-size:14px;color:var(--muted)}
+label.feld{display:block;font-size:14px;font-weight:500;margin:4px 0 6px}
+input[type=text]{width:100%;font:inherit;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+input[type=text]:focus{outline:2px solid var(--accent);outline-offset:1px}
+label.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin:14px 0}
+label.check input{margin-top:3px;width:18px;height:18px;flex:none}
+button.los{width:100%;border:0;border-radius:12px;background:var(--accent);color:#fff;font:600 17px/1 var(--body);padding:16px;cursor:pointer;margin-top:6px}
+button.los:disabled{opacity:.5;cursor:default}
+.erfolg{text-align:center;padding:28px 18px}
+.erfolg .kreis{width:64px;height:64px;border-radius:50%;background:var(--ok-soft);color:var(--ok);display:grid;place-items:center;font-size:32px;margin:0 auto 14px}
+footer{margin-top:32px;font-size:12px;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">INFINERO<small>Websites & KI-Automatisierung</small></div>
+  <div id="inhalt"><p class="lead" style="margin-top:32px">Ihr Angebot wird geladen …</p></div>
+  <footer>INFINERO · Inhaber Ziu Tonndorf · Closewitzer Straße 19 · 07743 Jena · <a href="mailto:kontakt@infinero.de">kontakt@infinero.de</a> · <a href="https://infinero.de/impressum" rel="noopener">Impressum</a> · <a href="https://infinero.de/datenschutz" rel="noopener">Datenschutz</a></footer>
+</div>
+<script src="config.js"></script>
+<script>
+(function () {
+  "use strict";
+  var API = ((window.INFINERO_CONFIG || {}).supabaseUrl || "https://ckiuvhuvuicbiabfkggg.supabase.co") + "/functions/v1/auftrag";
+  var q = new URLSearchParams(location.search), token = q.get("t") || "", ok = q.get("ok") === "1";
+  var el = document.getElementById("inhalt");
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
+  var eur = function (n) { return (+n || 0).toLocaleString("de-DE", { style: "currency", currency: "EUR" }); };
+
+  function fehler(text) { el.innerHTML = '<h1>Das hat nicht geklappt</h1><div class="hinweis fehler">' + esc(text) + '</div><p class="klein">Bei Fragen erreichen Sie uns unter <a href="mailto:kontakt@infinero.de">kontakt@infinero.de</a>.</p>'; }
+
+  function kontakt(a) {
+    return esc(a.ansprechpartner_infinero) + (a.telefon_infinero ? ' · <a href="tel:' + esc(a.telefon_infinero.replace(/[^+\d]/g, "")) + '">' + esc(a.telefon_infinero) + "</a>" : "");
+  }
+
+  function danke(a) {
+    el.innerHTML = '<div class="card erfolg"><div class="kreis">✓</div><h1 style="margin-top:0">Vielen Dank' + (a.firma ? ", " + esc(a.firma) : "") + '!</h1>' +
+      '<p>Ihr Auftrag ist bei uns eingegangen. Die Rechnung erhalten Sie per E-Mail' + (a.email ? " an " + esc(a.email) : "") + '.</p>' +
+      '<p><b>So geht es weiter:</b> Wir melden uns in den nächsten Tagen für ein kurzes Onboarding-Gespräch, in dem wir alles für Ihre ' +
+      'Website besprechen. Ihr Ansprechpartner: ' + kontakt(a) + '</p></div>';
+  }
+
+  function angebot(a) {
+    var ust = function (n) { return Math.round(n * 19) / 100; };
+    var html = "";
+    if (a.testmodus) html += '<div class="hinweis test"><b>Testmodus:</b> Es wird nichts abgebucht. Zum Ausprobieren Testkarte 4242 4242 4242 4242 (beliebiges Datum in der Zukunft, beliebige Prüfziffer) verwenden.</div>';
+    html += "<h1>Ihr Auftrag</h1><p class='lead'>für " + esc(a.firma) + (a.anschrift ? " · " + esc(a.anschrift) : "") + "</p>";
+    html += '<div class="card"><h2>' + esc(a.produkt_name) + "</h2>" + (a.produkt_text ? "<p style='margin:0 0 10px'>" + esc(a.produkt_text) + "</p>" : "");
+    if (a.notiz && a.notiz !== "TEST") html += "<p class='klein' style='margin:0 0 10px'>" + esc(a.notiz) + "</p>";
+    if (a.setup > 0) html += '<div class="zeile"><span>Einrichtung (einmalig, netto)</span><span>' + eur(a.setup) + "</span></div>";
+    if (a.monatlich > 0) html += '<div class="zeile"><span>Betrieb & Pflege „Rund um sorglos“ (monatlich, netto)</span><span>' + eur(a.monatlich) + "</span></div>";
+    html += '<div class="zeile summe"><span>Erste Rechnung (inkl. 19 % USt)</span><span>' + eur((a.setup + a.monatlich) + ust(a.setup + a.monatlich)) + "</span></div>";
+    if (a.monatlich > 0) html += '<p class="klein" style="margin:8px 0 0">Danach monatlich ' + eur(a.monatlich + ust(a.monatlich)) + " inkl. USt, jeweils im Voraus. Mindestlaufzeit " +
+      esc(a.laufzeit_monate || 12) + " Monate, danach Verlängerung um jeweils 12 Monate, Kündigungsfrist 3 Monate zum Laufzeitende.</p>";
+    html += "</div>";
+
+    if (a.monatlich > 0) html += '<div class="card"><h2>Im Monatsbeitrag enthalten</h2><ul class="haken">' +
+      "<li>Hosting, SSL-Zertifikat und tägliche Sicherungen</li><li>Technische Wartung, Updates und Sicherheit</li>" +
+      "<li>Inhaltliche Änderungen, die Sie uns einfach schicken</li><li>Persönlicher Ansprechpartner statt Hotline</li></ul></div>";
+
+    html += '<div class="card"><h2>Beauftragen</h2>' +
+      '<p class="klein" style="margin-top:0">Nach dem Klick geben Sie beim Zahlungsanbieter Stripe Ihre Zahlungsart an (SEPA-Lastschrift oder Karte). Die Rechnungen kommen automatisch per E-Mail.</p>' +
+      '<details><summary>Die wichtigsten Vertragsbedingungen</summary><ol>' +
+      "<li>Die Einrichtung wird mit Auftragserteilung fällig (Zahlungsziel 14 Tage).</li>" +
+      "<li>Bis zur Abnahme sind Änderungswünsche an der Website inklusive.</li>" +
+      (a.monatlich > 0 ? "<li>Der Monatsbeitrag wird monatlich im Voraus berechnet; Mindestlaufzeit " + esc(a.laufzeit_monate || 12) + " Monate, Verlängerung um 12 Monate, Kündigung 3 Monate zum Laufzeitende.</li>" : "") +
+      "<li>Das Angebot richtet sich ausschließlich an Unternehmer im Sinne von § 14 BGB.</li>" +
+      "<li>Es gelten die Allgemeinen Geschäftsbedingungen von INFINERO" + (a.vertraege_freigegeben ? "" : " (Fassung in Abstimmung, Stand " + esc(a.version) + ")") + ".</li></ol></details>" +
+      '<form id="f" style="margin-top:14px"><label class="feld" for="name">Ihr Name (vertretungsberechtigt für ' + esc(a.firma) + ")</label>" +
+      '<input type="text" id="name" autocomplete="name" required minlength="3" value="' + esc(a.ansprechpartner || "") + '">' +
+      '<label class="check"><input type="checkbox" id="ja" required><span>Ich beauftrage INFINERO im Namen von ' + esc(a.firma) + " mit der oben genannten Leistung, handle als Unternehmer und stimme den Vertragsbedingungen und AGB zu.</span></label>" +
+      '<div id="meldung"></div><button class="los" type="submit" id="los">Zahlungspflichtig beauftragen</button></form>' +
+      '<p class="klein" style="margin-bottom:0">Fragen? ' + kontakt(a) + "</p></div>";
+    el.innerHTML = html;
+
+    document.getElementById("f").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var btn = document.getElementById("los"), m = document.getElementById("meldung");
+      btn.disabled = true; btn.textContent = "Einen Moment …"; m.innerHTML = "";
+      fetch(API, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ t: token, name: document.getElementById("name").value, zustimmung: document.getElementById("ja").checked }) })
+        .then(function (r) { return r.json(); })
+        .then(function (x) {
+          if (x.url) { location.href = x.url; return; }
+          throw new Error(x.fehler || "Unbekannter Fehler");
+        })
+        .catch(function (err) {
+          m.innerHTML = '<div class="hinweis fehler">' + esc(err.message) + "</div>";
+          btn.disabled = false; btn.textContent = "Zahlungspflichtig beauftragen";
+        });
+    });
+  }
+
+  function laden(versuch) {
+    fetch(API + "?t=" + encodeURIComponent(token))
+      .then(function (r) { return r.json(); })
+      .then(function (a) {
+        if (a.fehler) return fehler(a.fehler);
+        if (a.beauftragt) return danke(a);
+        // Zurück von Stripe: Bestätigung kann ein paar Sekunden dauern
+        if (ok && versuch < 6) { el.innerHTML = '<p class="lead" style="margin-top:32px">Ihr Auftrag wird bestätigt …</p>'; return setTimeout(function () { laden(versuch + 1); }, 2000); }
+        if (ok) return danke(a);
+        angebot(a);
+      })
+      .catch(function () { fehler("Die Seite konnte nicht geladen werden. Bitte prüfen Sie Ihre Internetverbindung."); });
+  }
+  if (!token) fehler("Dieser Link ist unvollständig."); else laden(0);
+})();
+</script>
+</body>
+</html>

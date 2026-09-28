@@ -89,6 +89,7 @@
     async auftrag(id) { return this._check(this.sb.from("auftraege").select("*, lead:leads(*)").eq("id", id).single()); }
     async auftragAnlegen(a) { return this._check(this.sb.from("auftraege").insert({ ...a, erstellt_von: this.profil.kuerzel }).select().single()); }
     async auftragUpdate(id, patch) { return this._check(this.sb.from("auftraege").update(patch).eq("id", id).select().single()); }
+    async rechnungen(auftrag_id) { return this._check(this.sb.from("stripe_rechnungen").select("*").eq("auftrag_id", auftrag_id).order("datum", { ascending: false })); }
     async cockpit() {
       const s = tagStart().toISOString();
       const [akt, info, demo, pool, rot] = await Promise.all([
@@ -278,7 +279,8 @@
     async setDemoUrl(id, url) { this.d.zielgruppen.find(z => z.id === id).demo_url = url || null; this._save(); }
     async setTerminLink(url) { this.d.config.termin_link = url || null; this._save(); }
     async mailBereit() { return true; }
-    async mailSenden(m) { await new Promise(r => setTimeout(r, 500)); const l = this.d.leads.find(x => x.id === m.lead_id); if (l) { l.info_mail = "gesendet"; this._save(); } return { ok: true }; }
+    async rechnungen() { return []; }
+    async mailSenden(m) { await new Promise(r => setTimeout(r, 500)); const l = this.d.leads.find(x => x.id === m.lead_id); if (l && !m.art) { l.info_mail = "gesendet"; this._save(); } return { ok: true }; }
     async kiAbsatz() { await new Promise(r => setTimeout(r, 600)); return { absatz: "Schön, dass wir über Ihre Situation im Studio sprechen konnten – gerade weil viele Anfragen abends per WhatsApp kommen, während Sie noch bei der Kundin sind. Genau dafür haben wir Ihnen unten zusammengestellt, wie eine automatische Antwort und Terminbuchung bei Ihnen aussehen könnte. (Beispieltext im Demo-Modus)" }; }
     async calcomWebhook() { return { url: "https://DEMO.supabase.co/functions/v1/calcom", secret: "demo-geheimnis" }; }
     async setProfil(telefon, termin_link) { Object.assign(this.d.team.find(t => t.kuerzel === this.profil.kuerzel), { telefon: telefon || null, termin_link: termin_link || null }); this._save(); }
