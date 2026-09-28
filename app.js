@@ -810,6 +810,8 @@
     });
   }
   async function stufeSetzen(a, stufe) {
+    if (stufe === "live" && a.stripe_customer_id && +a.monatlich > 0 && !a.stripe_subscription_id
+        && !confirm(`Website ist live? Damit startet das Abo über Stripe: ${eur(a.monatlich)} netto im Monat, erste Abbuchung sofort.`)) return;
     const patch = { stufe };
     if (stufe === "live") patch.live_am = isoDate(new Date());
     if (stufe === "onboarding") patch.onboarding_am = new Date().toISOString();
@@ -817,7 +819,7 @@
     try {
       await store.auftragUpdate(a.id, patch);
       await store.aktivitaet({ lead_id: a.lead_id, typ: "status", text: `Auftrag ${a.produkt}: ${STUFE[stufe][1]}` });
-      if (stufe === "live") feiern("Live!", `${(a.lead && a.lead.firma) || ""} ist online.`);
+      if (stufe === "live") feiern("Live!", `${(a.lead && a.lead.firma) || ""} ist online.` + (a.stripe_customer_id && +a.monatlich > 0 && !a.stripe_subscription_id ? " Das Abo startet jetzt." : ""));
       else toast(STUFE[stufe][1]);
       schliessen(false); zeige("auftraege");
     } catch (err) { fehler(err); }

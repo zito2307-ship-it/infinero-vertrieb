@@ -75,7 +75,8 @@ footer{margin-top:32px;font-size:12px;color:var(--muted);text-align:center}
 
   function danke(a) {
     el.innerHTML = '<div class="card erfolg"><div class="kreis">✓</div><h1 style="margin-top:0">Vielen Dank' + (a.firma ? ", " + esc(a.firma) : "") + '!</h1>' +
-      '<p>Ihr Auftrag ist bei uns eingegangen. Die Rechnung erhalten Sie per E-Mail' + (a.email ? " an " + esc(a.email) : "") + '.</p>' +
+      '<p>Ihr Auftrag ist bei uns eingegangen. Die Rechnung für die Einrichtung erhalten Sie per E-Mail' + (a.email ? " an " + esc(a.email) : "") + '.' +
+      (a.monatlich > 0 ? ' Der Monatsbeitrag startet erst, wenn Ihre Website live ist.' : '') + '</p>' +
       '<p><b>So geht es weiter:</b> Wir melden uns in den nächsten Tagen für ein kurzes Onboarding-Gespräch, in dem wir alles für Ihre ' +
       'Website besprechen. Ihr Ansprechpartner: ' + kontakt(a) + '</p></div>';
   }
@@ -89,8 +90,8 @@ footer{margin-top:32px;font-size:12px;color:var(--muted);text-align:center}
     if (a.notiz && a.notiz !== "TEST") html += "<p class='klein' style='margin:0 0 10px'>" + esc(a.notiz) + "</p>";
     if (a.setup > 0) html += '<div class="zeile"><span>Einrichtung (einmalig, netto)</span><span>' + eur(a.setup) + "</span></div>";
     if (a.monatlich > 0) html += '<div class="zeile"><span>Betrieb & Pflege „Rund um sorglos“ (monatlich, netto)</span><span>' + eur(a.monatlich) + "</span></div>";
-    html += '<div class="zeile summe"><span>Erste Rechnung (inkl. 19 % USt)</span><span>' + eur((a.setup + a.monatlich) + ust(a.setup + a.monatlich)) + "</span></div>";
-    if (a.monatlich > 0) html += '<p class="klein" style="margin:8px 0 0">Danach monatlich ' + eur(a.monatlich + ust(a.monatlich)) + " inkl. USt, jeweils im Voraus. Mindestlaufzeit " +
+    html += '<div class="zeile summe"><span>Jetzt fällig: Einrichtung (inkl. 19 % USt)</span><span>' + eur(a.setup + ust(a.setup)) + "</span></div>";
+    if (a.monatlich > 0) html += '<p class="klein" style="margin:8px 0 0">Ab dem Livegang Ihrer Website monatlich ' + eur(a.monatlich + ust(a.monatlich)) + " inkl. USt, jeweils im Voraus – vorher zahlen Sie keinen Monatsbeitrag. Mindestlaufzeit " +
       esc(a.laufzeit_monate || 12) + " Monate, danach Verlängerung um jeweils 12 Monate, Kündigungsfrist 3 Monate zum Laufzeitende.</p>";
     html += "</div>";
 
@@ -99,11 +100,11 @@ footer{margin-top:32px;font-size:12px;color:var(--muted);text-align:center}
       "<li>Inhaltliche Änderungen, die Sie uns einfach schicken</li><li>Persönlicher Ansprechpartner statt Hotline</li></ul></div>";
 
     html += '<div class="card"><h2>Beauftragen</h2>' +
-      '<p class="klein" style="margin-top:0">Nach dem Klick geben Sie beim Zahlungsanbieter Stripe Ihre Zahlungsart an (SEPA-Lastschrift oder Karte). Die Rechnungen kommen automatisch per E-Mail.</p>' +
+      '<p class="klein" style="margin-top:0">Nach dem Klick geben Sie beim Zahlungsanbieter Stripe Ihre Zahlungsart an (SEPA-Lastschrift oder Karte). Jetzt wird nur die Einrichtung berechnet; der Monatsbeitrag wird ab dem Livegang über dieselbe Zahlungsart eingezogen. Die Rechnungen kommen automatisch per E-Mail.</p>' +
       '<details><summary>Die wichtigsten Vertragsbedingungen</summary><ol>' +
       "<li>Die Einrichtung wird mit Auftragserteilung fällig (Zahlungsziel 14 Tage).</li>" +
       "<li>Bis zur Abnahme sind Änderungswünsche an der Website inklusive.</li>" +
-      (a.monatlich > 0 ? "<li>Der Monatsbeitrag wird monatlich im Voraus berechnet; Mindestlaufzeit " + esc(a.laufzeit_monate || 12) + " Monate, Verlängerung um 12 Monate, Kündigung 3 Monate zum Laufzeitende.</li>" : "") +
+      (a.monatlich > 0 ? "<li>Der Monatsbeitrag beginnt mit dem Livegang der Website und wird monatlich im Voraus berechnet; Mindestlaufzeit " + esc(a.laufzeit_monate || 12) + " Monate ab Livegang, Verlängerung um 12 Monate, Kündigung 3 Monate zum Laufzeitende.</li>" : "") +
       "<li>Das Angebot richtet sich ausschließlich an Unternehmer im Sinne von § 14 BGB.</li>" +
       "<li>Es gelten die Allgemeinen Geschäftsbedingungen von INFINERO" + (a.vertraege_freigegeben ? "" : " (Fassung in Abstimmung, Stand " + esc(a.version) + ")") + ".</li></ol></details>" +
       '<form id="f" style="margin-top:14px"><label class="feld" for="name">Ihr Name (vertretungsberechtigt für ' + esc(a.firma) + ")</label>" +
