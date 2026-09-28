@@ -63,13 +63,14 @@
       return this._check(x);
     }
     async lead(id) {
-      const [l, akt, ter, deals] = await Promise.all([
+      const [l, akt, ter, deals, auf] = await Promise.all([
         this._check(this.sb.from("leads").select("*").eq("id", id).single()),
         this._check(this.sb.from("aktivitaeten").select("*").eq("lead_id", id).order("zeit", { ascending: false }).limit(50)),
         this._check(this.sb.from("termine").select("*").eq("lead_id", id).order("beginn", { ascending: false })),
         this._check(this.sb.from("abschluesse").select("*").eq("lead_id", id).order("datum")),
+        this._check(this.sb.from("auftraege").select("*").eq("lead_id", id).order("erstellt_am")),
       ]);
-      return { ...l, _akt: akt, _termine: ter, _deals: deals };
+      return { ...l, _akt: akt, _termine: ter, _deals: deals, _auftraege: auf };
     }
     async leadAnlegen(d) { return this._check(this.sb.from("leads").insert(d).select().single()); }
     async leadUpdate(id, patch) { return this._check(this.sb.from("leads").update(patch).eq("id", id).select().single()); }
@@ -84,6 +85,10 @@
     async deals() { return this._check(this.sb.from("abschluesse").select("*").order("datum", { ascending: false })); }
     async dealAnlegen(d) { return this._check(this.sb.from("abschluesse").insert({ ...d, gemeldet_von: this.profil.kuerzel }).select().single()); }
     async dealUpdate(id, patch) { await this._check(this.sb.from("abschluesse").update(patch).eq("id", id)); }
+    async auftraege() { return this._check(this.sb.from("auftraege").select("*, lead:leads(id,firma,ort,branche,telefon,email,ansprechpartner,owner,zielgruppe,website,status,demo_infos)").order("stufe_seit", { ascending: false })); }
+    async auftrag(id) { return this._check(this.sb.from("auftraege").select("*, lead:leads(*)").eq("id", id).single()); }
+    async auftragAnlegen(a) { return this._check(this.sb.from("auftraege").insert({ ...a, erstellt_von: this.profil.kuerzel }).select().single()); }
+    async auftragUpdate(id, patch) { return this._check(this.sb.from("auftraege").update(patch).eq("id", id).select().single()); }
     async cockpit() {
       const s = tagStart().toISOString();
       const [akt, info, demo, pool, rot] = await Promise.all([
@@ -218,7 +223,7 @@
     }
     async lead(id) {
       const l = this.d.leads.find(x => x.id === id);
-      return { ...this._lead(l), _akt: this.d.akt.filter(a => a.lead_id === id).reverse(), _termine: this.d.termine.filter(t => t.lead_id === id), _deals: this.d.deals.filter(x => x.lead_id === id) };
+      return { ...this._lead(l), _akt: this.d.akt.filter(a => a.lead_id === id).reverse(), _termine: this.d.termine.filter(t => t.lead_id === id), _deals: this.d.deals.filter(x => x.lead_id === id), _auftraege: (this.d.auftraege || []).filter(a => a.lead_id === id) };
     }
     async leadAnlegen(d) { const l = { id: this.d.nextLead++, erfasst_am: new Date().toISOString(), status: "neu", gesperrt: false, versuche: 0, prio: 0, interesse_produkte: [], ...d }; l.lead_nr = "L-" + String(l.id).padStart(6, "0"); this.d.leads.push(l); this._save(); return l; }
     async leadUpdate(id, patch) { const l = this.d.leads.find(x => x.id === id); Object.assign(l, patch, { geaendert_am: new Date().toISOString() }); this._save(); return this._lead(l); }
@@ -234,6 +239,22 @@
     async deals() { return this.d.deals.slice().reverse(); }
     async dealAnlegen(x) { const d = { id: this._id(), gemeldet_von: this.k, gemeldet_am: new Date().toISOString(), ...x }; this.d.deals.push(d); this._save(); return d; }
     async dealUpdate(id, patch) { Object.assign(this.d.deals.find(x => x.id === id), patch); this._save(); }
+    _auftragMit(a) { return { ...a, lead: this.d.leads.find(l => l.id === a.lead_id) }; }
+    async auftraege() {
+      const k = this.k, inh = (this.d.team.find(t => t.kuerzel === k) || {}).rolle === "inhaber";
+      return (this.d.auftraege || []).filter(a => inh || a.vertriebler === k).map(a => this._auftragMit(a)).sort((a, b) => b.stufe_seit.localeCompare(a.stufe_seit));
+    }
+    async auftrag(id) { return this._auftragMit(this.d.auftraege.find(a => a.id === id)); }
+    async auftragAnlegen(x) {
+      const jetzt = new Date().toISOString();
+      const a = { id: this._id(), stufe: "zusage", laufzeit_monate: 12, onboarding: {}, token: "demo-" + Math.random().toString(36).slice(2), erstellt_von: this.k, erstellt_am: jetzt, stufe_seit: jetzt, ...x };
+      (this.d.auftraege ||= []).push(a); this._save(); return a;
+    }
+    async auftragUpdate(id, patch) {
+      const a = this.d.auftraege.find(x => x.id === id);
+      if (patch.stufe && patch.stufe !== a.stufe) patch = { ...patch, stufe_seit: new Date().toISOString() };
+      Object.assign(a, patch); this._save(); return a;
+    }
     async cockpit() {
       const s = tagStart();
       return {

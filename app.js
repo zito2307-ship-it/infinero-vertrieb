@@ -141,6 +141,7 @@
     prov: '<circle cx="12" cy="12" r="8"/><path d="M15 9.5c-.6-1-1.7-1.5-3-1.5-1.9 0-3 1-3 2.2 0 3 6 1.6 6 4.6 0 1.2-1.2 2.2-3 2.2-1.4 0-2.5-.6-3.1-1.6"/>',
     cockpit: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
     statistik: '<path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/>',
+    auftraege: '<rect x="3" y="4" width="5" height="16" rx="1.2"/><rect x="10" y="4" width="5" height="11" rx="1.2"/><rect x="17" y="4" width="4" height="14" rx="1.2"/>',
     tel: '<path d="M6.6 10.8a15.1 15.1 0 006.6 6.6l2.2-2.2a1 1 0 011-.25 11.4 11.4 0 003.6.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.57a1 1 0 01-.25 1z"/>',
   };
 
@@ -174,7 +175,7 @@
 
   // ---------------------------------------------------------------- Tabs
   function tabs() {
-    const t = [["heute", "Heute"], ["leads", "Leads"], ["termine", "Termine"], ["deals", "Abschlüsse"], ["statistik", "Statistik"]];
+    const t = [["heute", "Heute"], ["leads", "Leads"], ["termine", "Termine"], ["auftraege", "Aufträge"], ["deals", "Provision"], ["statistik", "Statistik"]];
     if (inhaber()) t.push(["cockpit", "Cockpit"]);
     $("#tablist").innerHTML = t.map(([k, l]) => `<button class="tab" role="tab" type="button" data-tab="${k}" aria-selected="${S.tab === k}"><svg viewBox="0 0 24 24">${ICON[k === "cockpit" ? "cockpit" : k]}</svg>${l}</button>`).join("");
     $("#tabs").hidden = false;
@@ -189,6 +190,7 @@
       else if (S.tab === "leads") v.innerHTML = await viewLeads();
       else if (S.tab === "termine") v.innerHTML = await viewTermine();
       else if (S.tab === "deals") v.innerHTML = await viewDeals();
+      else if (S.tab === "auftraege") v.innerHTML = await viewAuftraege();
       else if (S.tab === "statistik") { v.innerHTML = await viewStatistik(); }
       else if (S.tab === "cockpit") v.innerHTML = await viewCockpit();
     } catch (e) { fehler(e); v.innerHTML = `<div class="empty">Daten konnten nicht geladen werden. Internetverbindung prüfen und neu öffnen.</div>`; }
@@ -382,6 +384,37 @@
     });
   }
 
+  // Demo-Kurzfassung (Fragenkatalog A): 6 Felder, damit Ziu die Demo ohne Rückfrage bauen kann
+  const STILE = ["modern", "klassisch", "edel", "verspielt", "rustikal", "minimalistisch"];
+  const BILDER = [["alt", "Bilder von alter Website/Instagram nehmen"], ["kunde", "Kunde schickt Fotos"], ["stock", "Stockfotos sind ok"]];
+  function demoFelder(di = {}, l = {}) {
+    return `<div class="field full"><label for="dm_leist">Was bieten sie an? (3–5 wichtigste Leistungen)</label><textarea id="dm_leist" rows="3">${esc(di.leistungen)}</textarea></div>
+      <div class="field full"><label for="dm_bes">Was unterscheidet sie? (Meisterbetrieb, seit …, Notdienst …)</label><input id="dm_bes" value="${esc(di.besonders)}"></div>
+      <div class="field"><label for="dm_stil">Stil</label><select id="dm_stil"><option value="">–</option>${STILE.map(x => `<option${di.stil === x ? " selected" : ""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label for="dm_farben">Farben (Logo, Fahrzeuge, Wunsch)</label><input id="dm_farben" value="${esc(di.farben)}"></div>
+      <div class="field full"><label for="dm_vorlage">Vorlage: alte Website / Instagram / Google-Profil</label><input id="dm_vorlage" value="${esc(di.vorlage || l.website || "")}"></div>
+      <div class="field"><label for="dm_bilder">Bilder</label><select id="dm_bilder">${BILDER.map(([k, t]) => `<option value="${k}"${di.bilder === k ? " selected" : ""}>${t}</option>`).join("")}</select></div>
+      <div class="field"><label for="dm_bis">Demo fertig bis</label><input id="dm_bis" type="date" value="${esc(di.bis || "")}"></div>`;
+  }
+  function demoLesen(root) {
+    const v = s => (root.querySelector(s) || {}).value?.trim() || null;
+    return { leistungen: v("#dm_leist"), besonders: v("#dm_bes"), stil: v("#dm_stil"), farben: v("#dm_farben"), vorlage: v("#dm_vorlage"), bilder: v("#dm_bilder"), bis: v("#dm_bis") };
+  }
+  function demoText(di) {
+    if (!di) return "";
+    const b = (BILDER.find(x => x[0] === di.bilder) || [])[1];
+    return [di.leistungen && `Leistungen: ${di.leistungen}`, di.besonders && `Besonders: ${di.besonders}`, (di.stil || di.farben) && `Stil/Farben: ${[di.stil, di.farben].filter(Boolean).join(", ")}`,
+      di.vorlage && `Vorlage: ${di.vorlage}`, b && `Bilder: ${b}`, di.bis && `Fertig bis ${dDE(di.bis)}`].filter(Boolean).map(x => `<div>${esc(x)}</div>`).join("");
+  }
+  async function demoSheet(id) {
+    let l; try { l = await store.lead(id); } catch (e) { return fehler(e); }
+    const root = sheet("Demo-Infos · " + l.firma, `<form id="f" class="form">${demoFelder(l.demo_infos || {}, l)}<div class="full"><button class="btn primary block" type="submit">Speichern</button></div></form>`, id);
+    root.querySelector("#f").addEventListener("submit", async e => {
+      e.preventDefault();
+      try { await store.leadUpdate(id, { demo_infos: demoLesen(root), demo_website: l.demo_website || "offen" }); toast("Demo-Infos gespeichert"); detail(id); } catch (err) { fehler(err); }
+    });
+  }
+
   function interesseSheet(id, modus = "termin") {
     const l = findLead(id);
     const team = S.team.map(t => `<button class="chip" type="button" data-mit="${t.kuerzel}" aria-pressed="${t.kuerzel === S.view.kuerzel}">${esc(t.name)}</button>`).join("");
@@ -402,6 +435,7 @@
         <div class="field"><label for="t_mail">E-Mail (falls genannt)</label><input id="t_mail" type="email" value="${esc(l.email)}"></div>
         <div class="full"><div class="lbl">Interessiert an</div>${produktChips(l.interesse_produkte || [])}</div>
         <label class="check full"><input id="t_demo" type="checkbox"${l.demo_website ? " checked" : ""}><span>Individuelle Demo-Website gewünscht (Ziu baut sie vor dem Termin)</span></label>
+        <div class="full demoinfos form" id="t_demoinfos"${l.demo_website ? "" : " hidden"}><p class="hint full" style="margin:0">Kurz abfragen – damit Ziu die Demo ohne Rückfrage bauen kann:</p>${demoFelder(l.demo_infos || {}, l)}</div>
         <div class="field full"><label for="t_n">Notiz</label><input id="t_n" placeholder="z. B. Inhaber will Angebot für Stufe 2"></div>
         <div class="full"><button class="btn primary block" type="submit">Speichern</button></div>
       </form>`);
@@ -413,6 +447,7 @@
     };
     upd();
     root.addEventListener("click", e => { const b = e.target.closest("[data-mode]"); if (b) { mode = b.dataset.mode; upd(); } });
+    root.querySelector("#t_demo").addEventListener("change", e => { root.querySelector("#t_demoinfos").hidden = !e.target.checked; });
     root.querySelector("#f").addEventListener("submit", async e => {
       e.preventDefault();
       const q = s => root.querySelector(s);
@@ -420,7 +455,7 @@
       const mit = [...root.querySelectorAll("[data-mit][aria-pressed=true]")].map(b => b.dataset.mit);
       if (mode === "termin" && !mit.length) return toast("Bitte auswählen, wer zum Termin geht.");
       const patch = { ansprechpartner: q("#t_ap").value.trim() || null, email: q("#t_mail").value.trim() || null, interesse_produkte: gewaehlt(root) };
-      if (q("#t_demo").checked && !l.demo_website) patch.demo_website = "offen";
+      if (q("#t_demo").checked) { if (!l.demo_website) patch.demo_website = "offen"; patch.demo_infos = demoLesen(root); }
       const notiz = q("#t_n").value.trim();
       if (mode === "termin") Object.assign(patch, { status: "termin", wiedervorlage: wann.toISOString(), naechster_schritt: `Termin ${dDE(wann)} ${hhmm(wann)}` });
       else if (mode === "rueckruf") Object.assign(patch, { status: "rueckruf", wiedervorlage: wann.toISOString(), naechster_schritt: `Rückruf ${dDE(wann)} ${hhmm(wann)}` });
@@ -498,6 +533,7 @@
         ${l.email ? `<div class="kv"><span class="v">${esc(l.email)}</span>${l.einwilligung_email ? `<span class="pill ok">Einwilligung ${dDE(l.einwilligung_email)}</span>` : ""}</div>` : ""}
         ${l.email && l.info_mail === "offen" ? `<div class="actions"><button class="btn small primary" type="button" data-infomail="${l.id}">Info-Mail öffnen</button><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>` : ""}
         ${l.interesse_produkte && l.interesse_produkte.length ? `<div class="meta"><span>Interesse: ${esc(l.interesse_produkte.join(", "))}</span></div>` : ""}
+        ${l.demo_website ? `<div class="demobox"><div class="kv"><b>Demo-Website: ${esc(l.demo_website.replace("_", " "))}</b><button class="btn small" type="button" data-demoinfo="${l.id}">${l.demo_infos ? "Infos bearbeiten" : "Infos erfassen"}</button></div>${demoText(l.demo_infos) || `<div class="due">Noch keine Infos für die Demo erfasst.</div>`}</div>` : ""}
         ${l.gesperrt ? `<div class="due">Keine Werbung – nicht mehr kontaktieren.</div>` : ""}
       </div>
       ${!l.gesperrt && !["gewonnen"].includes(l.status) ? `<div class="outcomes" style="margin-top:10px">
@@ -505,11 +541,14 @@
         <button class="oc k" type="button" data-oc="kein" data-id="${l.id}">Kein Interesse</button>
         <button class="oc i" type="button" data-oc="info" data-id="${l.id}">Infos per Mail</button>
         <button class="oc y" type="button" data-oc="ja" data-id="${l.id}">Interesse</button></div>` : ""}
-      <div class="actions"><button class="btn primary" type="button" data-deal="${l.id}">${l._deals.length ? "Weiteren Auftrag melden" : "Abschluss melden"}</button>
+      <div class="actions">${(() => { const offen = (l._auftraege || []).find(a => ["zusage", "auftrag_raus"].includes(a.stufe));
+          return offen ? `<button class="btn primary" type="button" data-auftrag="${offen.id}">Auftrag ansehen</button>` : `<button class="btn primary" type="button" data-zusage="${l.id}">${l._deals.length ? "Neue Zusage (Folgeauftrag)" : "Zusage"}</button>`; })()}
+        <button class="btn" type="button" data-deal="${l.id}">Unterschrieben – Abschluss melden</button>
         ${l.status === "termin" || l.status === "interesse" || l.status === "info_angefragt" ? `<button class="btn" type="button" data-setstatus="angebot" data-id="${l.id}">Angebot verschickt</button>` : ""}
         ${!l.gesperrt ? `<button class="btn danger" type="button" data-sperren="${l.id}">Keine Werbung</button>` : ""}</div>
       ${l._termine.length ? `<h2 class="sec">Termine</h2><div class="list">${l._termine.map(t => `<div class="block"><div class="kv"><span>${esc(tagDE(new Date(t.beginn)))}, ${hhmm(new Date(t.beginn))}</span><span class="pill ${t.status === "geplant" ? "ok" : ""}">${esc(t.status)}</span></div><div class="meta"><span>mit ${esc(t.mit.map(name).join(" & "))}</span><span>${esc(ART[t.art])}</span></div>${t.status === "geplant" ? `<div class="actions">${kalenderButtons({ ...t, lead: l })}</div>` : ""}</div>`).join("")}</div>` : ""}
-      ${l._deals.length ? `<h2 class="sec">Aufträge</h2><div class="list">${l._deals.map(dealCard).join("")}</div>` : ""}
+      ${(l._auftraege || []).length ? `<h2 class="sec">Aufträge</h2><div class="list">${l._auftraege.map(a => auftragCard({ ...a, lead: l })).join("")}</div>` : ""}
+      ${l._deals.length ? `<h2 class="sec">Abschlüsse</h2><div class="list">${l._deals.map(dealCard).join("")}</div>` : ""}
       <h2 class="sec">Daten</h2>
       <form id="f" class="form">
         ${felder.map(([k, t]) => `<div class="field${k === "firma" || k === "naechster_schritt" ? " full" : ""}"><label for="d_${k}">${t}</label><input id="d_${k}" name="${k}" value="${esc(l[k])}"></div>`).join("")}
@@ -627,11 +666,148 @@
       const d = { lead_id: l.id, kunde_firma: l.firma, produkt: q("#p").value, art, setup: +q("#s").value || 0, monatlich: +q("#m").value || 0,
         datum: q("#dt").value, vertriebler: q("#v").value, tippgeber: q("#tg") && q("#v").value === "INH" ? (q("#tg").value.trim() || null) : null, notiz: q("#nz").value.trim() || null };
       try {
-        await store.dealAnlegen(d);
+        const deal = await store.dealAnlegen(d);
+        const offen = (l._auftraege || []).find(a => ["zusage", "auftrag_raus"].includes(a.stufe) && a.produkt === d.produkt);
+        const beauftragt = { stufe: "beauftragt", beauftragt_am: new Date().toISOString(), beauftragt_name: "Abschluss gemeldet (unterschrieben)", abschluss_id: deal && deal.id };
+        if (offen) await store.auftragUpdate(offen.id, beauftragt);
+        else await store.auftragAnlegen({ lead_id: l.id, produkt: d.produkt, setup: d.setup, monatlich: d.monatlich, vertriebler: d.vertriebler, tippgeber: d.tippgeber, notiz: d.notiz, ...beauftragt });
         if (l.status !== "gewonnen") { await store.leadUpdate(l.id, { status: "gewonnen", wiedervorlage: null, naechster_schritt: "Kunde – Umsetzung" }); await store.aktivitaet({ lead_id: l.id, typ: "status", ergebnis: "gewonnen", text: "Abschluss " + d.produkt }); }
         schliessen(false); zeige("deals");
         const pv = provision(d);
         feiern("Abschluss!", `${l.firma} · ${d.produkt}` + (pv.an && pv.an === S.view.kuerzel ? ` · +${eur(pv.betrag)} Provision` : ` · ${eur(d.setup)} Setup`));
+      } catch (err) { fehler(err); }
+    });
+  }
+
+  // ---------------------------------------------------------------- Aufträge (vom Ja bis zur fertigen Website)
+  const STUFEN = [["zusage", "Zusage", "warn"], ["auftrag_raus", "Auftrag raus", ""], ["beauftragt", "Beauftragt", "ok"], ["onboarding", "Onboarding", "accent"],
+    ["in_arbeit", "In Arbeit", "accent"], ["abnahme", "Abnahme", "warn"], ["live", "Live", "ok"]];
+  const STUFE = Object.fromEntries([...STUFEN, ["storniert", "Storniert", "bad"]].map(x => [x[0], x]));
+  const NAECHSTE = { zusage: "auftrag_raus", auftrag_raus: "beauftragt", beauftragt: "onboarding", onboarding: "in_arbeit", in_arbeit: "abnahme", abnahme: "live" };
+  const WEITER_TEXT = { zusage: "Auftrag ist verschickt", beauftragt: "Onboarding-Gespräch geführt", onboarding: "Alle Infos da – Umsetzung starten",
+    in_arbeit: "Zur Abnahme an den Kunden", abnahme: "Abgenommen – ist live" };
+  const tageSeit = s => Math.max(0, Math.floor((Date.now() - new Date(s)) / 864e5));
+  function handlungsbedarf(a) {
+    const t = tageSeit(a.stufe_seit);
+    return { zusage: t >= 2 && "Auftrag noch nicht verschickt", auftrag_raus: t >= 3 && "Nachfassen – noch nicht beauftragt",
+      beauftragt: t >= 3 && "Onboarding-Gespräch führen", onboarding: t >= 5 && "Fehlen noch Infos vom Kunden?", abnahme: t >= 5 && "Abnahme nachfassen" }[a.stufe] || "";
+  }
+  function auftragCard(a) {
+    const st = STUFE[a.stufe] || [a.stufe, a.stufe, ""], hb = handlungsbedarf(a), t = tageSeit(a.stufe_seit);
+    return `<article class="card auftrag${hb ? " hb" : ""}"><div class="head"><h3><button type="button" data-auftrag="${a.id}">${esc((a.lead && a.lead.firma) || "Auftrag")}</button></h3><span class="pill ${st[2]}">${esc(st[1])}</span></div>
+      <div class="meta"><span>${esc(a.produkt)}</span><span class="money">${eur(a.setup)}</span>${+a.monatlich ? `<span>+ ${eur(a.monatlich)}/Monat</span>` : ""}</div>
+      <div class="meta"><span>${esc(name(a.vertriebler))}</span><span>${t === 0 ? "seit heute" : t === 1 ? "seit gestern" : `seit ${t} Tagen`}</span>${a.lead && a.lead.ort ? `<span>${esc(a.lead.ort)}</span>` : ""}</div>
+      ${hb ? `<div class="due">${esc(hb)}</div>` : ""}</article>`;
+  }
+  async function viewAuftraege() {
+    const as = await store.auftraege(); S.data.auftraege = as;
+    const aktiv = as.filter(a => a.stufe !== "storniert"), hb = aktiv.filter(handlungsbedarf);
+    if (!as.length) return `<h2 class="sec">Aufträge</h2><div class="empty">Noch keine Aufträge. Sagt ein Kunde am Telefon zu, im Lead auf <b>„Zusage“</b> tippen – dann wandert er hier von Stufe zu Stufe bis zur fertigen Website.</div>`;
+    const summe = f => aktiv.filter(f).reduce((x, a) => x + (+a.setup || 0), 0);
+    return `<div class="sum"><div class="hi"><span>Offen (Zusage/Auftrag raus)</span><b>${eur(summe(a => ["zusage", "auftrag_raus"].includes(a.stufe)))}</b></div>
+        <div><span>Beauftragt, in Umsetzung</span><b>${eur(summe(a => ["beauftragt", "onboarding", "in_arbeit", "abnahme"].includes(a.stufe)))}</b></div><div><span>Live</span><b>${aktiv.filter(a => a.stufe === "live").length}</b></div></div>
+      ${hb.length ? `<h2 class="sec">Jetzt dran <span class="n">${hb.length}</span></h2><div class="list">${hb.map(auftragCard).join("")}</div>` : ""}
+      <h2 class="sec">Tafel</h2><p class="hint">Wischen für alle Stufen. Karte antippen für Details und den nächsten Schritt.</p>
+      <div class="tafel">${STUFEN.map(([k, t]) => { const xs = aktiv.filter(a => a.stufe === k);
+        return `<section class="spalte" aria-label="${esc(t)}"><h3>${esc(t)} <span class="n">${xs.length}</span></h3>${xs.map(auftragCard).join("") || `<div class="leer">–</div>`}</section>`; }).join("")}</div>
+      ${as.length > aktiv.length ? `<p class="hint">${as.length - aktiv.length} stornierte Aufträge ausgeblendet.</p>` : ""}`;
+  }
+  async function auftragSheet(id) {
+    let a; try { a = await store.auftrag(id); } catch (e) { return fehler(e); }
+    const l = a.lead || {}, i = STUFEN.findIndex(x => x[0] === a.stufe), naechste = NAECHSTE[a.stufe];
+    const kannZurueck = inhaber() && i > 0 && a.stufe !== "beauftragt";
+    const kannStorno = a.stufe !== "storniert" && a.stufe !== "live" && (inhaber() || ["zusage", "auftrag_raus"].includes(a.stufe));
+    const root = sheet(l.firma || "Auftrag", `
+      <ol class="stepper">${STUFEN.map(([k, t], j) => `<li class="${j < i ? "done" : j === i ? "jetzt" : ""}">${esc(t)}</li>`).join("")}</ol>
+      ${a.stufe === "storniert" ? `<div class="due">Dieser Auftrag ist storniert.</div>` : ""}
+      <div class="block">
+        <div class="kv"><span>Produkt</span><b>${esc((PRODUKTE.find(p => p.code === a.produkt) || {}).name || a.produkt)}</b></div>
+        <div class="kv"><span>Einrichtung</span><b class="money">${eur(a.setup)}</b></div>
+        <div class="kv"><span>Monatlich</span><span class="money">${eur(a.monatlich)} · ${a.laufzeit_monate} Monate</span></div>
+        <div class="kv"><span>Vertriebler</span><span>${esc(name(a.vertriebler))}${a.tippgeber ? " · Tipp: " + esc(a.tippgeber) : ""}</span></div>
+        <div class="kv"><span>Zusage</span><span>${dDE(a.erstellt_am)}${a.beauftragt_am ? ` · beauftragt ${dDE(a.beauftragt_am)}` : ""}${a.live_am ? ` · live ${dDE(a.live_am)}` : ""}</span></div>
+        ${a.notiz ? `<div class="meta"><span>${esc(a.notiz)}</span></div>` : ""}
+      </div>
+      <div class="block">
+        <div class="kv"><b>${esc(l.firma || "")}</b><button class="btn small" type="button" data-open="${l.id}">Lead öffnen</button></div>
+        <div class="meta">${[l.ansprechpartner, l.ort, l.branche].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join("")}</div>
+        ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a>${l.email ? `<span class="v">${esc(l.email)}</span>` : ""}</div>` : ""}
+      </div>
+      ${a.stufe === "storniert" ? "" : `<h2 class="sec">Nächster Schritt</h2><div class="block">
+        ${["zusage", "auftrag_raus"].includes(a.stufe) ? `<p class="hint" style="margin:0 0 8px">Der Online-Auftrag per Link kommt als Nächstes. Bis dahin: Vertrag als PDF schicken und hier bestätigen, sobald er unterschrieben zurück ist.</p>
+          <div class="actions">${a.stufe === "zusage" ? `<button class="btn" type="button" data-stufe="auftrag_raus" data-aid="${a.id}">Auftrag ist verschickt</button>` : ""}
+          <button class="btn primary" type="button" data-beauftragen="${a.id}">Kunde hat beauftragt</button></div>`
+        : naechste ? `<div class="actions"><button class="btn primary" type="button" data-stufe="${naechste}" data-aid="${a.id}">${esc(WEITER_TEXT[a.stufe])}</button></div>`
+        : `<p class="hint" style="margin:0">Fertig – der Kunde ist live. 🎉</p>`}
+        ${a.stufe === "beauftragt" ? `<p class="hint">Der Fragenkatalog fürs Onboarding-Gespräch kommt hier als Formular hinein, sobald Ziu ihn freigegeben hat.</p>` : ""}
+        <div class="actions">${kannZurueck ? `<button class="btn small" type="button" data-stufe="${STUFEN[i - 1][0]}" data-aid="${a.id}">Eine Stufe zurück</button>` : ""}
+          ${kannStorno ? `<button class="btn small danger" type="button" data-stornieren="${a.id}">Stornieren</button>` : ""}</div>
+      </div>`}`);
+    root.addEventListener("click", async e => {
+      const b = e.target.closest("button"); if (!b) return;
+      const d = b.dataset;
+      if (d.stufe) { e.stopPropagation(); await stufeSetzen(a, d.stufe); }
+      if (d.beauftragen) { e.stopPropagation(); if (confirm(`${l.firma} hat verbindlich beauftragt (${a.produkt}, ${eur(a.setup)})? Damit gilt es als Abschluss.`)) await beauftragen(a); }
+      if (d.stornieren) { e.stopPropagation(); if (confirm("Auftrag wirklich stornieren?" + (a.abschluss_id ? " Der Abschluss bleibt bestehen – bei Bedarf Storno im Vault anlegen." : ""))) await stufeSetzen(a, "storniert"); }
+    });
+  }
+  async function stufeSetzen(a, stufe) {
+    const patch = { stufe };
+    if (stufe === "live") patch.live_am = isoDate(new Date());
+    if (stufe === "onboarding") patch.onboarding_am = new Date().toISOString();
+    if (stufe === "auftrag_raus") patch.gesendet_am = new Date().toISOString();
+    try {
+      await store.auftragUpdate(a.id, patch);
+      await store.aktivitaet({ lead_id: a.lead_id, typ: "status", text: `Auftrag ${a.produkt}: ${STUFE[stufe][1]}` });
+      if (stufe === "live") feiern("Live!", `${(a.lead && a.lead.firma) || ""} ist online.`);
+      else toast(STUFE[stufe][1]);
+      schliessen(false); zeige("auftraege");
+    } catch (err) { fehler(err); }
+  }
+  async function beauftragen(a) {
+    try {
+      const l = await store.lead(a.lead_id);
+      const art = (l._deals || []).some(d => d.art !== "storno") ? "folge" : "neu";
+      const d = { lead_id: l.id, kunde_firma: l.firma, produkt: a.produkt, art, setup: +a.setup || 0, monatlich: +a.monatlich || 0,
+        datum: isoDate(new Date()), vertriebler: a.vertriebler, tippgeber: a.tippgeber || null, notiz: a.notiz || null };
+      const deal = await store.dealAnlegen(d);
+      await store.auftragUpdate(a.id, { stufe: "beauftragt", beauftragt_am: new Date().toISOString(), beauftragt_name: "manuell bestätigt", abschluss_id: deal && deal.id });
+      if (l.status !== "gewonnen") await store.leadUpdate(l.id, { status: "gewonnen", wiedervorlage: null, naechster_schritt: "Onboarding-Gespräch" });
+      await store.aktivitaet({ lead_id: l.id, typ: "status", ergebnis: "gewonnen", text: "Beauftragt: " + a.produkt });
+      schliessen(false); zeige("auftraege");
+      const pv = provision(d);
+      feiern("Beauftragt!", `${l.firma} · ${a.produkt}` + (pv.an && pv.an === S.view.kuerzel ? ` · +${eur(pv.betrag)} Provision` : ` · ${eur(d.setup)} Einrichtung`));
+    } catch (err) { fehler(err); }
+  }
+  function zusageSheet(id) {
+    const l = S.data.detail; if (!l || l.id !== id) return;
+    const frueher = (l._deals || []).filter(d => d.art !== "storno");
+    const vertr = frueher.length ? frueher[0].vertriebler : (l.owner || S.view.kuerzel);
+    const tipp = frueher.length ? (frueher[0].tippgeber || "") : "";
+    const vorschlag = PRODUKTE.find(p => (l.interesse_produkte || []).includes(p.code)) || PRODUKTE[0];
+    const root = sheet("Zusage · " + l.firma, `<form id="f" class="form">
+      <p class="hint full" style="margin:0">Der Kunde hat am Telefon Ja gesagt. Das ist noch kein Abschluss – der zählt, sobald er beauftragt (Vertrag bzw. Online-Auftrag).</p>
+      <div class="field full"><label for="p">Produkt</label><select id="p">${PRODUKTE.map(p => `<option value="${p.code}"${p.code === vorschlag.code ? " selected" : ""}>${esc(p.name)} – ${eur(p.setup)} + ${eur(p.monat)}/Monat</option>`).join("")}</select></div>
+      <div class="field"><label for="s">Einrichtung netto (€)</label><input id="s" type="number" step="0.01" min="0" inputmode="decimal" value="${vorschlag.setup}"></div>
+      <div class="field"><label for="m">Monatlich netto (€)</label><input id="m" type="number" step="0.01" min="0" inputmode="decimal" value="${vorschlag.monat}"></div>
+      <div class="field"><label for="lz">Laufzeit (Monate)</label><input id="lz" type="number" min="1" step="1" inputmode="numeric" value="12"></div>
+      <div class="field"><label for="v">Vertriebler</label>${inhaber() && !frueher.length ? `<select id="v">${S.team.map(t => `<option value="${t.kuerzel}"${t.kuerzel === vertr ? " selected" : ""}>${esc(t.name)}</option>`).join("")}</select>` : `<input id="v" value="${esc(vertr)}" readonly>`}</div>
+      ${inhaber() ? `<div class="field full" id="tw"><label for="tg">Tippgeber (nur bei Tipp direkt an Ziu)</label><input id="tg" value="${esc(tipp)}"${frueher.length ? " readonly" : ""}></div>` : ""}
+      <div class="field full"><label for="nz">Notiz (z. B. Sonderwünsche, Rabatt, Starttermin)</label><input id="nz"></div>
+      <div class="full"><button class="btn primary block" type="submit">Zusage speichern</button></div></form>`, id);
+    const q = s => root.querySelector(s);
+    const tw = () => { if (q("#tw")) q("#tw").hidden = q("#v").value !== "INH"; }; tw(); q("#v").addEventListener("change", tw);
+    q("#p").addEventListener("change", () => { const p = PRODUKTE.find(x => x.code === q("#p").value); q("#s").value = p.setup; q("#m").value = p.monat; });
+    q("#f").addEventListener("submit", async e => {
+      e.preventDefault();
+      const a = { lead_id: l.id, produkt: q("#p").value, setup: +q("#s").value || 0, monatlich: +q("#m").value || 0, laufzeit_monate: +q("#lz").value || 12,
+        vertriebler: q("#v").value, tippgeber: q("#tg") && q("#v").value === "INH" ? (q("#tg").value.trim() || null) : null, notiz: q("#nz").value.trim() || null, stufe: "zusage" };
+      try {
+        await store.auftragAnlegen(a);
+        await store.leadUpdate(l.id, { status: "angebot", wiedervorlage: naechsterWerktag(3, 10).toISOString(), naechster_schritt: "Beauftragung nachfassen" });
+        await store.aktivitaet({ lead_id: l.id, typ: "status", ergebnis: "angebot", text: `Zusage: ${a.produkt} (${eur(a.setup)})` });
+        schliessen(false); zeige("auftraege");
+        feiern("Zusage!", `${l.firma} · ${a.produkt} – jetzt Auftrag raus.`, false);
       } catch (err) { fehler(err); }
     });
   }
@@ -736,6 +912,7 @@
       <h2 class="sec">Demo-Websites <span class="n">${c.demo.length}</span></h2>
       <div class="list">${c.demo.length ? c.demo.map(l => `<article class="card"><div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3><span class="pill ${l.demo_website === "offen" ? "warn" : "accent"}">${l.demo_website === "offen" ? "offen" : "in Arbeit"}</span></div>
         <div class="meta"><span>${esc(l.branche || "")}</span><span>${esc(l.ort || "")}</span>${l.website ? `<span>${webLink(l.website)}</span>` : ""}<span>${esc(l.naechster_schritt || "")}</span></div>
+        ${l.demo_infos ? `<div class="demobox">${demoText(l.demo_infos)}</div>` : `<div class="due">Keine Demo-Infos erfasst</div>`}
         <div class="actions">${l.demo_website === "offen" ? `<button class="btn small" type="button" data-demo="in_arbeit" data-id="${l.id}">In Arbeit</button>` : ""}<button class="btn small" type="button" data-demo="fertig" data-id="${l.id}">Fertig</button></div></article>`).join("") : `<div class="empty">Keine Demo-Websites angefragt.</div>`}</div>
       <h2 class="sec">Lead-Nachschub</h2>
       <div class="block"><div class="kv"><span>Leads im Pool (noch niemandem zugeteilt)</span><b class="money">${c.pool}</b></div>
@@ -910,6 +1087,9 @@
     if (ds.prod) { t.setAttribute("aria-pressed", String(t.getAttribute("aria-pressed") !== "true")); return; }
     if (ds.mit) { t.setAttribute("aria-pressed", String(t.getAttribute("aria-pressed") !== "true")); return; }
     if (ds.deal) return dealSheet(+ds.deal);
+    if (ds.zusage) return zusageSheet(+ds.zusage);
+    if (ds.demoinfo) return demoSheet(+ds.demoinfo);
+    if (ds.auftrag) return auftragSheet(+ds.auftrag);
     if (ds.setstatus) { try { await store.leadUpdate(id, { status: ds.setstatus, wiedervorlage: naechsterWerktag(3, 10).toISOString(), naechster_schritt: "Nachfassen Angebot" }); await store.aktivitaet({ lead_id: id, typ: "status", ergebnis: ds.setstatus }); toast("Status: Angebot"); detail(id); } catch (err) { fehler(err); } return; }
     if (ds.sperren) { try { await store.leadUpdate(+ds.sperren, { gesperrt: true, wiedervorlage: null }); await store.aktivitaet({ lead_id: +ds.sperren, typ: "status", text: "Keine Werbung gewünscht – gesperrt" }); toast("Gesperrt"); detail(+ds.sperren); } catch (err) { fehler(err); } return; }
     if (ds.askdel) { $("#delwrap").innerHTML = `<div class="confirm">Lead endgültig löschen? <button class="btn danger small" type="button" data-dodel="${ds.askdel}">Ja, löschen</button><button class="btn small" type="button" data-nodel="${ds.askdel}">Abbrechen</button></div>`; return; }
@@ -963,7 +1143,7 @@
     S.view = S.team.find(m => m.kuerzel === start) || S.team.find(m => m.kuerzel === p.kuerzel) || { ...p };
     store.setAnsicht(S.view.kuerzel); kopf();
     if (store.mode === "demo") $("#banner").innerHTML = `<div class="banner">Demo-Modus: Beispieldaten nur auf diesem Gerät. Ansicht wechseln über den Namen oben rechts.</div>`;
-    const h = location.hash.slice(1), erlaubt = ["heute", "leads", "termine", "deals", "statistik", ...(inhaber() ? ["cockpit"] : [])];
+    const h = location.hash.slice(1), erlaubt = ["heute", "leads", "termine", "auftraege", "deals", "statistik", ...(inhaber() ? ["cockpit"] : [])];
     zeige(erlaubt.includes(h) ? h : h === "prov" ? "deals" : "heute");
   }
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
