@@ -16,6 +16,8 @@
     { code: "UPGRADE-3", name: "Upgrade Stufe 2 → 3", setup: 690, monat: 80 },
     { code: "UPGRADE-4", name: "Upgrade Stufe 3 → 4", setup: 990, monat: 200 },
   ];
+  // Anzeigename eines Auftrags: bei individuellem Angebot die eigene Bezeichnung, sonst der Katalogname
+  const pname = a => a.bezeichnung || (PRODUKTE.find(p => p.code === a.produkt) || {}).name || a.produkt;
   const INTERESSE = [["WEBSITE", "Website"], ["WEBCHAT", "Web-Chatbot"], ["MSGBOT", "WhatsApp/Messenger-Bot"], ["KICALLER", "KI-Caller"]];
   const STATUS = {
     neu: ["Neu", "accent"], nicht_erreicht: ["Nicht erreicht", ""], rueckruf: ["Rückruf", "warn"],
@@ -367,11 +369,11 @@
   function auftragMail(a) {
     const l = a.lead || {};
     const ich = (store.mode === "live" && S.team.find(t => t.kuerzel === S.profil.kuerzel)) || S.view;
-    const p = (PRODUKTE.find(x => x.code === a.produkt) || {}).name || a.produkt;
+    const p = pname(a);
     const text = [
       anrede(l),
       "vielen Dank für Ihre Zusage – wir freuen uns sehr auf die Zusammenarbeit!",
-      `Unter diesem Link finden Sie Ihr Angebot (${p}) mit allen Konditionen. Dort können Sie den Auftrag mit wenigen Klicks erteilen und Ihre Zahlungsart hinterlegen (SEPA-Lastschrift oder Karte). Fällig wird jetzt nur die Einrichtung – der Monatsbeitrag beginnt erst, wenn Ihre Website live ist:\n${auftragLink(a)}`,
+      `Unter diesem Link finden Sie Ihr Angebot „${p}“ mit allen Konditionen. Dort können Sie den Auftrag mit wenigen Klicks erteilen und Ihre Zahlungsart hinterlegen (SEPA-Lastschrift oder Karte). ${+a.monatlich > 0 ? "Fällig wird jetzt nur die Einrichtung – der Monatsbeitrag beginnt erst, wenn Ihre Website live ist" : "Es fällt einmalig der vereinbarte Betrag an, ohne laufende Kosten"}:\n${auftragLink(a)}`,
       "Sobald der Auftrag da ist, melden wir uns für ein kurzes Onboarding-Gespräch, in dem wir alles für Ihre Website besprechen.",
       "Bei Fragen erreichen Sie mich jederzeit.",
       ["Viele Grüße", ich.name, "", ...SIGNATUR, [ich.telefon ? "Tel. " + ich.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n"),
@@ -742,7 +744,7 @@
   function auftragCard(a) {
     const st = STUFE[a.stufe] || [a.stufe, a.stufe, ""], hb = handlungsbedarf(a), t = tageSeit(a.stufe_seit);
     return `<article class="card auftrag${hb ? " hb" : ""}"><div class="head"><h3><button type="button" data-auftrag="${a.id}">${esc((a.lead && a.lead.firma) || "Auftrag")}</button></h3><span class="pill ${st[2]}">${esc(st[1])}</span></div>
-      <div class="meta"><span>${esc(a.produkt)}</span><span class="money">${eur(a.setup)}</span>${+a.monatlich ? `<span>+ ${eur(a.monatlich)}/Monat</span>` : ""}</div>
+      <div class="meta"><span>${esc(pname(a))}</span><span class="money">${eur(a.setup)}</span>${+a.monatlich ? `<span>+ ${eur(a.monatlich)}/Monat</span>` : ""}</div>
       <div class="meta"><span>${esc(name(a.vertriebler))}</span><span>${t === 0 ? "seit heute" : t === 1 ? "seit gestern" : `seit ${t} Tagen`}</span>${a.lead && a.lead.ort ? `<span>${esc(a.lead.ort)}</span>` : ""}</div>
       ${hb ? `<div class="due">${esc(hb)}</div>` : ""}</article>`;
   }
@@ -774,12 +776,14 @@
       <ol class="stepper">${STUFEN.map(([k, t], j) => `<li class="${j < i ? "done" : j === i ? "jetzt" : ""}">${esc(t)}</li>`).join("")}</ol>
       ${a.stufe === "storniert" ? `<div class="due">Dieser Auftrag ist storniert.</div>` : ""}
       <div class="block">
-        <div class="kv"><span>Produkt</span><b>${esc((PRODUKTE.find(p => p.code === a.produkt) || {}).name || a.produkt)}</b></div>
+        <div class="kv"><span>Produkt</span><b>${esc(pname(a))}</b></div>
+        ${a.bezeichnung ? `<div class="kv"><span>Individuell</span><span>Basis: ${esc((PRODUKTE.find(p => p.code === a.produkt) || {}).name || a.produkt)}</span></div>` : ""}
+        ${a.beschreibung ? `<div class="meta"><span style="white-space:pre-line">${esc(a.beschreibung)}</span></div>` : ""}
         <div class="kv"><span>Einrichtung</span><b class="money">${eur(a.setup)}</b></div>
-        <div class="kv"><span>Monatlich</span><span class="money">${eur(a.monatlich)} · ${a.laufzeit_monate} Monate</span></div>
+        <div class="kv"><span>Monatlich</span>${+a.monatlich > 0 ? `<span class="money">${eur(a.monatlich)} · ${a.laufzeit_monate} Monate</span>` : "<span>ohne Abo</span>"}</div>
         <div class="kv"><span>Vertriebler</span><span>${esc(name(a.vertriebler))}${a.tippgeber ? " · Tipp: " + esc(a.tippgeber) : ""}</span></div>
         <div class="kv"><span>Zusage</span><span>${dDE(a.erstellt_am)}${a.beauftragt_am ? ` · beauftragt ${dDE(a.beauftragt_am)}` : ""}${a.live_am ? ` · live ${dDE(a.live_am)}` : ""}</span></div>
-        ${a.notiz ? `<div class="meta"><span>${esc(a.notiz)}</span></div>` : ""}
+        ${a.notiz ? `<div class="meta"><span>Intern: ${esc(a.notiz)}</span></div>` : ""}
         ${a.zahlung_status || a.abo_status ? `<div class="kv"><span>Zahlung</span><span>${esc(ZAHLUNG[a.zahlung_status] || a.zahlung_status || "–")}${a.abo_status ? " · Abo " + esc(ABO[a.abo_status] || a.abo_status) : ""}</span></div>` : ""}
         ${a.beauftragt_name && a.zustimmung ? `<div class="kv"><span>Online zugestimmt</span><span>${esc(a.beauftragt_name)} · ${dDE(a.zustimmung.zeit)}</span></div>` : ""}
         ${a.live_am && +a.monatlich > 0 ? `<div class="kv"><span>Laufzeit</span><span>ab ${dDE(a.live_am)} · ${a.abo_ende ? `<b>gekündigt zum ${dDE(a.abo_ende)}</b>` : `nächstes Ende ${dDE(laufzeitEnde(a.live_am, a.laufzeit_monate, isoDate(new Date())))} (Kündigung bis ${dDE(plusMonate(laufzeitEnde(a.live_am, a.laufzeit_monate, isoDate(new Date())), -3))})`}</span></div>
@@ -824,7 +828,7 @@
         try { await store.aboKuendigen({ auftrag_id: a.id, zuruecknehmen: true }); toast("Kündigung zurückgenommen"); schliessen(false); auftragSheet(a.id); } catch (err) { toast("Nicht gespeichert: " + err.message); }
         return;
       }
-      if (d.beauftragen) { e.stopPropagation(); if (confirm(`${l.firma} hat verbindlich beauftragt (${a.produkt}, ${eur(a.setup)})? Damit gilt es als Abschluss.`)) await beauftragen(a); }
+      if (d.beauftragen) { e.stopPropagation(); if (confirm(`${l.firma} hat verbindlich beauftragt (${pname(a)}, ${eur(a.setup)})? Damit gilt es als Abschluss.`)) await beauftragen(a); }
       if (d.stornieren) { e.stopPropagation(); if (confirm("Auftrag wirklich stornieren?" + (a.abschluss_id ? " Der Abschluss bleibt bestehen – bei Bedarf Storno im Vault anlegen." : ""))) await stufeSetzen(a, "storniert"); }
     });
   }
@@ -837,7 +841,7 @@
     if (stufe === "auftrag_raus") patch.gesendet_am = new Date().toISOString();
     try {
       await store.auftragUpdate(a.id, patch);
-      await store.aktivitaet({ lead_id: a.lead_id, typ: "status", text: `Auftrag ${a.produkt}: ${STUFE[stufe][1]}` });
+      await store.aktivitaet({ lead_id: a.lead_id, typ: "status", text: `Auftrag ${pname(a)}: ${STUFE[stufe][1]}` });
       if (stufe === "live") feiern("Live!", `${(a.lead && a.lead.firma) || ""} ist online.` + (a.stripe_customer_id && +a.monatlich > 0 && !a.stripe_subscription_id ? " Das Abo startet jetzt." : ""));
       else toast(STUFE[stufe][1]);
       schliessen(false); zeige("auftraege");
@@ -848,14 +852,14 @@
       const l = await store.lead(a.lead_id);
       const art = (l._deals || []).some(d => d.art !== "storno") ? "folge" : "neu";
       const d = { lead_id: l.id, kunde_firma: l.firma, produkt: a.produkt, art, setup: +a.setup || 0, monatlich: +a.monatlich || 0,
-        datum: isoDate(new Date()), vertriebler: a.vertriebler, tippgeber: a.tippgeber || null, notiz: a.notiz || null };
+        datum: isoDate(new Date()), vertriebler: a.vertriebler, tippgeber: a.tippgeber || null, notiz: [a.bezeichnung, a.notiz].filter(Boolean).join(" · ") || null };
       const deal = await store.dealAnlegen(d);
       await store.auftragUpdate(a.id, { stufe: "beauftragt", beauftragt_am: new Date().toISOString(), beauftragt_name: "manuell bestätigt", abschluss_id: deal && deal.id });
       if (l.status !== "gewonnen") await store.leadUpdate(l.id, { status: "gewonnen", wiedervorlage: null, naechster_schritt: "Onboarding-Gespräch" });
-      await store.aktivitaet({ lead_id: l.id, typ: "status", ergebnis: "gewonnen", text: "Beauftragt: " + a.produkt });
+      await store.aktivitaet({ lead_id: l.id, typ: "status", ergebnis: "gewonnen", text: "Beauftragt: " + pname(a) });
       schliessen(false); zeige("auftraege");
       const pv = provision(d);
-      feiern("Beauftragt!", `${l.firma} · ${a.produkt}` + (pv.an && pv.an === S.view.kuerzel ? ` · +${eur(pv.betrag)} Provision` : ` · ${eur(d.setup)} Einrichtung`));
+      feiern("Beauftragt!", `${l.firma} · ${pname(a)}` + (pv.an && pv.an === S.view.kuerzel ? ` · +${eur(pv.betrag)} Provision` : ` · ${eur(d.setup)} Einrichtung`));
     } catch (err) { fehler(err); }
   }
   function zusageSheet(id) {
@@ -866,27 +870,52 @@
     const vorschlag = PRODUKTE.find(p => (l.interesse_produkte || []).includes(p.code)) || PRODUKTE[0];
     const root = sheet("Zusage · " + l.firma, `<form id="f" class="form">
       <p class="hint full" style="margin:0">Der Kunde hat am Telefon Ja gesagt. Das ist noch kein Abschluss – der zählt, sobald er beauftragt (Vertrag bzw. Online-Auftrag).</p>
-      <div class="field full"><label for="p">Produkt</label><select id="p">${PRODUKTE.map(p => `<option value="${p.code}"${p.code === vorschlag.code ? " selected" : ""}>${esc(p.name)} – ${eur(p.setup)} + ${eur(p.monat)}/Monat</option>`).join("")}</select></div>
-      <div class="field"><label for="s">Einrichtung netto (€)</label><input id="s" type="number" step="0.01" min="0" inputmode="decimal" value="${vorschlag.setup}"></div>
-      <div class="field"><label for="m">Monatlich netto (€)</label><input id="m" type="number" step="0.01" min="0" inputmode="decimal" value="${vorschlag.monat}"></div>
-      <div class="field"><label for="lz">Laufzeit (Monate)</label><input id="lz" type="number" min="1" step="1" inputmode="numeric" value="12"></div>
+      <label class="check full"><input id="ind" type="checkbox"><span><b>Individuell</b> – eigener Preis, eigene Bezeichnung (z. B. nur Website ohne Hosting, verhandelter Preis)</span></label>
+      <div class="field full"><label for="p" id="p_l">Produkt</label><select id="p">${PRODUKTE.map(p => `<option value="${p.code}"${p.code === vorschlag.code ? " selected" : ""}>${esc(p.name)} – ${eur(p.setup)} + ${eur(p.monat)}/Monat</option>`).join("")}</select></div>
+      <div class="field full" data-ind hidden><label for="bz">Bezeichnung (sieht der Kunde im Angebot und auf der Rechnung)</label><input id="bz" maxlength="120" placeholder="z. B. Website ohne Hosting (Einmalkauf)"></div>
+      <div class="field full" data-ind hidden><label for="bs">Leistungsumfang (sieht der Kunde, optional)</label><textarea id="bs" rows="3" placeholder="z. B. 5 Unterseiten, Kontaktformular, Übergabe der Dateien – Hosting übernimmt der Kunde selbst"></textarea></div>
+      <div class="field"><label for="s">Einrichtung netto (€)</label><input id="s" type="number" step="0.01" min="0" inputmode="decimal" value="${vorschlag.setup}" readonly></div>
+      <div class="field"><label for="m">Monatlich netto (€)</label><input id="m" type="number" step="0.01" min="0" inputmode="decimal" value="${vorschlag.monat}" readonly></div>
+      <div class="field"><label for="lz">Laufzeit (Monate)</label><input id="lz" type="number" min="1" step="1" inputmode="numeric" value="12" readonly></div>
       <div class="field"><label for="v">Vertriebler</label>${inhaber() && !frueher.length ? `<select id="v">${S.team.map(t => `<option value="${t.kuerzel}"${t.kuerzel === vertr ? " selected" : ""}>${esc(t.name)}</option>`).join("")}</select>` : `<input id="v" value="${esc(vertr)}" readonly>`}</div>
       ${inhaber() ? `<div class="field full" id="tw"><label for="tg">Tippgeber (nur bei Tipp direkt an Ziu)</label><input id="tg" value="${esc(tipp)}"${frueher.length ? " readonly" : ""}></div>` : ""}
-      <div class="field full"><label for="nz">Notiz (z. B. Sonderwünsche, Rabatt, Starttermin)</label><input id="nz"></div>
+      <p class="hint full" id="ind_hint" hidden></p>
+      <div class="field full"><label for="nz">Interne Notiz (sieht der Kunde nicht – z. B. Verhandlung, Rabatt, Starttermin)</label><textarea id="nz" rows="2"></textarea></div>
       <div class="full"><button class="btn primary block" type="submit">Zusage speichern</button></div></form>`, id);
     const q = s => root.querySelector(s);
     const tw = () => { if (q("#tw")) q("#tw").hidden = q("#v").value !== "INH"; }; tw(); q("#v").addEventListener("change", tw);
-    q("#p").addEventListener("change", () => { const p = PRODUKTE.find(x => x.code === q("#p").value); q("#s").value = p.setup; q("#m").value = p.monat; });
+    const katalog = () => PRODUKTE.find(x => x.code === q("#p").value);
+    const hinweis = () => {
+      if (!q("#ind").checked) return;
+      const p = katalog(), s_ = +q("#s").value || 0, m_ = +q("#m").value || 0, t = [];
+      if (s_ !== p.setup) t.push(`Einrichtung ${s_ < p.setup ? "−" : "+"}${eur(Math.abs(s_ - p.setup))} ggü. Katalog`);
+      if (m_ !== p.monat) t.push(m_ === 0 ? "ohne Abo (kein Hosting/keine Pflege, keine Laufzeit)" : `monatlich ${m_ < p.monat ? "−" : "+"}${eur(Math.abs(m_ - p.monat))} ggü. Katalog`);
+      q("#ind_hint").textContent = t.length ? t.join(" · ") + ". Provision richtet sich nach dem tatsächlichen Einrichtungspreis." : "Preise wie im Katalog.";
+      q("#lz").closest(".field").hidden = m_ === 0;
+    };
+    q("#ind").addEventListener("change", () => {
+      const an = q("#ind").checked;
+      root.querySelectorAll("[data-ind]").forEach(x => { x.hidden = !an; });
+      ["#s", "#m", "#lz"].forEach(x => { q(x).readOnly = !an; });
+      q("#ind_hint").hidden = !an; q("#p_l").textContent = an ? "Basis-Produkt (für Vertrag, Provision und Auswertung)" : "Produkt";
+      if (an) { if (!q("#bz").value) q("#bz").value = katalog().name.replace(/^Stufe \d · /, "").replace(/ \(einzeln\)$/, ""); q("#bz").focus(); hinweis(); }
+      else { const p = katalog(); q("#s").value = p.setup; q("#m").value = p.monat; q("#lz").value = 12; q("#lz").closest(".field").hidden = false; }
+    });
+    ["#s", "#m"].forEach(x => q(x).addEventListener("input", hinweis));
+    q("#p").addEventListener("change", () => { const p = katalog(); if (!q("#ind").checked) { q("#s").value = p.setup; q("#m").value = p.monat; } hinweis(); });
     q("#f").addEventListener("submit", async e => {
       e.preventDefault();
-      const a = { lead_id: l.id, produkt: q("#p").value, setup: +q("#s").value || 0, monatlich: +q("#m").value || 0, laufzeit_monate: +q("#lz").value || 12,
+      const ind = q("#ind").checked, m_ = +q("#m").value || 0;
+      if (ind && !q("#bz").value.trim()) { toast("Bitte eine Bezeichnung für den Kunden eintragen"); return q("#bz").focus(); }
+      const a = { lead_id: l.id, produkt: q("#p").value, setup: +q("#s").value || 0, monatlich: m_, laufzeit_monate: m_ > 0 ? (+q("#lz").value || 12) : 12,
+        bezeichnung: ind ? q("#bz").value.trim() : null, beschreibung: ind ? (q("#bs").value.trim() || null) : null,
         vertriebler: q("#v").value, tippgeber: q("#tg") && q("#v").value === "INH" ? (q("#tg").value.trim() || null) : null, notiz: q("#nz").value.trim() || null, stufe: "zusage" };
       try {
         await store.auftragAnlegen(a);
         await store.leadUpdate(l.id, { status: "angebot", wiedervorlage: naechsterWerktag(3, 10).toISOString(), naechster_schritt: "Beauftragung nachfassen" });
-        await store.aktivitaet({ lead_id: l.id, typ: "status", ergebnis: "angebot", text: `Zusage: ${a.produkt} (${eur(a.setup)})` });
+        await store.aktivitaet({ lead_id: l.id, typ: "status", ergebnis: "angebot", text: `Zusage: ${pname(a)}${ind ? " (individuell)" : ""} (${eur(a.setup)}${m_ > 0 ? ` + ${eur(m_)}/Monat` : ""})` });
         schliessen(false); zeige("auftraege");
-        feiern("Zusage!", `${l.firma} · ${a.produkt} – jetzt Auftrag raus.`, false);
+        feiern("Zusage!", `${l.firma} · ${pname(a)} – jetzt Auftrag raus.`, false);
       } catch (err) { fehler(err); }
     });
   }

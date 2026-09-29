@@ -89,8 +89,7 @@ footer{margin-top:32px;font-size:12px;color:var(--muted);text-align:center}
     var html = "";
     if (a.testmodus) html += '<div class="hinweis test"><b>Testmodus:</b> Es wird nichts abgebucht. Zum Ausprobieren Testkarte 4242 4242 4242 4242 (beliebiges Datum in der Zukunft, beliebige Prüfziffer) verwenden.</div>';
     html += "<h1>Ihr Auftrag</h1><p class='lead'>für " + esc(a.firma) + (a.anschrift ? " · " + esc(a.anschrift) : "") + "</p>";
-    html += '<div class="card"><h2>' + esc(a.produkt_name) + "</h2>" + (a.produkt_text ? "<p style='margin:0 0 10px'>" + esc(a.produkt_text) + "</p>" : "");
-    if (a.notiz && a.notiz !== "TEST") html += "<p class='klein' style='margin:0 0 10px'>" + esc(a.notiz) + "</p>";
+    html += '<div class="card"><h2>' + esc(a.produkt_name) + "</h2>" + (a.produkt_text ? "<p style='margin:0 0 10px;white-space:pre-line'>" + esc(a.produkt_text) + "</p>" : "");
     if (a.setup > 0) html += '<div class="zeile"><span>Einrichtung (einmalig, netto)</span><span>' + eur(a.setup) + "</span></div>";
     if (a.monatlich > 0) html += '<div class="zeile"><span>Betrieb & Pflege „Rund um sorglos“ (monatlich, netto)</span><span>' + eur(a.monatlich) + "</span></div>";
     html += '<div class="zeile summe"><span>Jetzt fällig: Einrichtung (inkl. 19 % USt)</span><span>' + eur(a.setup + ust(a.setup)) + "</span></div>";
@@ -103,7 +102,7 @@ footer{margin-top:32px;font-size:12px;color:var(--muted);text-align:center}
       "<li>Inhaltliche Änderungen, die Sie uns einfach schicken</li><li>Persönlicher Ansprechpartner statt Hotline</li></ul></div>";
 
     html += '<div class="card"><h2>Beauftragen</h2>' +
-      '<p class="klein" style="margin-top:0">Nach dem Klick geben Sie beim Zahlungsanbieter Stripe Ihre Zahlungsart an (SEPA-Lastschrift oder Karte). Jetzt wird nur die Einrichtung berechnet; der Monatsbeitrag wird ab dem Livegang über dieselbe Zahlungsart eingezogen. Die Rechnungen kommen automatisch per E-Mail.</p>' +
+      '<p class="klein" style="margin-top:0">Nach dem Klick geben Sie beim Zahlungsanbieter Stripe Ihre Zahlungsart an (SEPA-Lastschrift oder Karte). ' + (a.monatlich > 0 ? 'Jetzt wird nur die Einrichtung berechnet; der Monatsbeitrag wird ab dem Livegang über dieselbe Zahlungsart eingezogen.' : 'Berechnet wird einmalig der oben genannte Betrag, es fallen keine laufenden Kosten an.') + ' Die Rechnungen kommen automatisch per E-Mail.</p>' +
       '<details><summary>Die wichtigsten Vertragsbedingungen</summary><ol>' +
       "<li>Die Einrichtung wird mit Auftragserteilung fällig (Zahlungsziel 14 Tage).</li>" +
       "<li>Bis zur Abnahme sind Änderungswünsche an der Website inklusive.</li>" +
