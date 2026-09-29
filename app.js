@@ -694,8 +694,9 @@
     const tipp = frueher.length ? (frueher[0].tippgeber || "") : "";
     const root = sheet((art === "folge" ? "Folgeauftrag · " : "Abschluss · ") + l.firma, `<form id="f" class="form">
       <div class="field full"><label for="p">Produkt</label><select id="p">${PRODUKTE.map(p => `<option value="${p.code}">${esc(p.name)} – ${eur(p.setup)} + ${eur(p.monat)}/Monat</option>`).join("")}</select></div>
-      <div class="field"><label for="s">Setup netto (€)</label><input id="s" type="number" step="0.01" min="0" inputmode="decimal" value="${PRODUKTE[0].setup}"></div>
-      <div class="field"><label for="m">Monatlich netto (€)</label><input id="m" type="number" step="0.01" min="0" inputmode="decimal" value="${PRODUKTE[0].monat}"></div>
+      <div class="field" id="knw" hidden><label for="kn">Kanäle</label><input id="kn" type="number" min="1" max="6" step="1" inputmode="numeric" value="1"></div>
+      <div class="field"><label for="s">Setup netto (€)</label><input id="s" type="number" step="0.01" min="0" inputmode="decimal" value="${PRODUKTE[0].setup}"${inhaber() ? "" : " readonly"}></div>
+      <div class="field"><label for="m">Monatlich netto (€)</label><input id="m" type="number" step="0.01" min="0" inputmode="decimal" value="${PRODUKTE[0].monat}"${inhaber() ? "" : " readonly"}></div>
       <div class="field"><label for="dt">Unterschrieben am</label><input id="dt" type="date" value="${isoDate(new Date())}"></div>
       <div class="field"><label for="v">Vertriebler</label>${inhaber() && !frueher.length ? `<select id="v">${S.team.map(t => `<option value="${t.kuerzel}"${t.kuerzel === vertr ? " selected" : ""}>${esc(t.name)}</option>`).join("")}</select>` : `<input id="v" value="${esc(vertr)}" readonly>`}</div>
       ${inhaber() ? `<div class="field full" id="tw"><label for="tg">Tippgeber (nur bei Tipp direkt an Ziu)</label><input id="tg" value="${esc(tipp)}"${frueher.length ? " readonly" : ""}></div>` : ""}
@@ -708,7 +709,9 @@
       if (d.vertriebler !== "INH") d.tippgeber = ""; if (q("#tw")) q("#tw").hidden = d.vertriebler !== "INH";
       const p = provision(d); q("#calc").innerHTML = p.an ? `Provision ${esc(name(p.an))}: <b>${eur(p.betrag)}</b> (${p.satz * 100} % vom Setup)` : "Keine Provision (Inhaber verkauft direkt, ohne Tippgeber).";
     };
-    q("#p").addEventListener("change", () => { const p = PRODUKTE.find(x => x.code === q("#p").value); q("#s").value = p.setup; q("#m").value = p.monat; calc(); });
+    const preis = () => { const p = PRODUKTE.find(x => x.code === q("#p").value), msg = p.code === "MSGBOT"; q("#knw").hidden = !msg;
+      const n = msg ? Math.min(6, Math.max(1, Math.round(+q("#kn").value || 1))) : 1; q("#s").value = p.setup * n; q("#m").value = p.monat * n; calc(); };
+    q("#p").addEventListener("change", preis); q("#kn").addEventListener("input", preis);
     root.addEventListener("input", calc); calc();
     q("#f").addEventListener("submit", async e => {
       e.preventDefault();
@@ -870,8 +873,9 @@
     const vorschlag = PRODUKTE.find(p => (l.interesse_produkte || []).includes(p.code)) || PRODUKTE[0];
     const root = sheet("Zusage · " + l.firma, `<form id="f" class="form">
       <p class="hint full" style="margin:0">Der Kunde hat am Telefon Ja gesagt. Das ist noch kein Abschluss – der zählt, sobald er beauftragt (Vertrag bzw. Online-Auftrag).</p>
-      <label class="check full"><input id="ind" type="checkbox"><span><b>Individuell</b> – eigener Preis, eigene Bezeichnung (z. B. nur Website ohne Hosting, verhandelter Preis)</span></label>
+      ${inhaber() ? `<label class="check full"><input id="ind" type="checkbox"><span><b>Individuell</b> – eigener Preis, eigene Bezeichnung (z. B. nur Website ohne Hosting, verhandelter Preis) – nur für dich sichtbar</span></label>` : ""}
       <div class="field full"><label for="p" id="p_l">Produkt</label><select id="p">${PRODUKTE.map(p => `<option value="${p.code}"${p.code === vorschlag.code ? " selected" : ""}>${esc(p.name)} – ${eur(p.setup)} + ${eur(p.monat)}/Monat</option>`).join("")}</select></div>
+      <div class="field" id="knw" hidden><label for="kn">Kanäle (WhatsApp, Instagram …)</label><input id="kn" type="number" min="1" max="6" step="1" inputmode="numeric" value="1"></div>
       <div class="field full" data-ind hidden><label for="bz">Bezeichnung (sieht der Kunde im Angebot und auf der Rechnung)</label><input id="bz" maxlength="120" placeholder="z. B. Website ohne Hosting (Einmalkauf)"></div>
       <div class="field full" data-ind hidden><label for="bs">Leistungsumfang (sieht der Kunde, optional)</label><textarea id="bs" rows="3" placeholder="z. B. 5 Unterseiten, Kontaktformular, Übergabe der Dateien – Hosting übernimmt der Kunde selbst"></textarea></div>
       <div class="field"><label for="s">Einrichtung netto (€)</label><input id="s" type="number" step="0.01" min="0" inputmode="decimal" value="${vorschlag.setup}" readonly></div>
@@ -885,35 +889,41 @@
     const q = s => root.querySelector(s);
     const tw = () => { if (q("#tw")) q("#tw").hidden = q("#v").value !== "INH"; }; tw(); q("#v").addEventListener("change", tw);
     const katalog = () => PRODUKTE.find(x => x.code === q("#p").value);
+    const ind = () => !!(q("#ind") && q("#ind").checked);   // Individuell nur für den Inhaber (Datenbank prüft das zusätzlich)
+    // Katalogpreis; Messaging-Bot je Kanal
+    const kanaele = () => { const zeig = q("#p").value === "MSGBOT" && !ind(); q("#knw").hidden = !zeig; return zeig ? Math.min(6, Math.max(1, Math.round(+q("#kn").value || 1))) : 1; };
+    const katalogPreis = () => { const p = katalog(), n = kanaele(); q("#s").value = p.setup * n; q("#m").value = p.monat * n; };
+    q("#kn").addEventListener("input", () => { if (!ind()) katalogPreis(); });
+    kanaele();
     const hinweis = () => {
-      if (!q("#ind").checked) return;
+      if (!ind()) return;
       const p = katalog(), s_ = +q("#s").value || 0, m_ = +q("#m").value || 0, t = [];
       if (s_ !== p.setup) t.push(`Einrichtung ${s_ < p.setup ? "−" : "+"}${eur(Math.abs(s_ - p.setup))} ggü. Katalog`);
       if (m_ !== p.monat) t.push(m_ === 0 ? "ohne Abo (kein Hosting/keine Pflege, keine Laufzeit)" : `monatlich ${m_ < p.monat ? "−" : "+"}${eur(Math.abs(m_ - p.monat))} ggü. Katalog`);
       q("#ind_hint").textContent = t.length ? t.join(" · ") + ". Provision richtet sich nach dem tatsächlichen Einrichtungspreis." : "Preise wie im Katalog.";
       q("#lz").closest(".field").hidden = m_ === 0;
     };
-    q("#ind").addEventListener("change", () => {
-      const an = q("#ind").checked;
+    if (q("#ind")) q("#ind").addEventListener("change", () => {
+      const an = q("#ind").checked; kanaele();
       root.querySelectorAll("[data-ind]").forEach(x => { x.hidden = !an; });
       ["#s", "#m", "#lz"].forEach(x => { q(x).readOnly = !an; });
       q("#ind_hint").hidden = !an; q("#p_l").textContent = an ? "Basis-Produkt (für Vertrag, Provision und Auswertung)" : "Produkt";
       if (an) { if (!q("#bz").value) q("#bz").value = katalog().name.replace(/^Stufe \d · /, "").replace(/ \(einzeln\)$/, ""); q("#bz").focus(); hinweis(); }
-      else { const p = katalog(); q("#s").value = p.setup; q("#m").value = p.monat; q("#lz").value = 12; q("#lz").closest(".field").hidden = false; }
+      else { katalogPreis(); q("#lz").value = 12; q("#lz").closest(".field").hidden = false; }
     });
     ["#s", "#m"].forEach(x => q(x).addEventListener("input", hinweis));
-    q("#p").addEventListener("change", () => { const p = katalog(); if (!q("#ind").checked) { q("#s").value = p.setup; q("#m").value = p.monat; } hinweis(); });
+    q("#p").addEventListener("change", () => { if (!ind()) katalogPreis(); else kanaele(); hinweis(); });
     q("#f").addEventListener("submit", async e => {
       e.preventDefault();
-      const ind = q("#ind").checked, m_ = +q("#m").value || 0;
-      if (ind && !q("#bz").value.trim()) { toast("Bitte eine Bezeichnung für den Kunden eintragen"); return q("#bz").focus(); }
+      const indi = ind(), m_ = +q("#m").value || 0;
+      if (indi && !q("#bz").value.trim()) { toast("Bitte eine Bezeichnung für den Kunden eintragen"); return q("#bz").focus(); }
       const a = { lead_id: l.id, produkt: q("#p").value, setup: +q("#s").value || 0, monatlich: m_, laufzeit_monate: m_ > 0 ? (+q("#lz").value || 12) : 12,
-        bezeichnung: ind ? q("#bz").value.trim() : null, beschreibung: ind ? (q("#bs").value.trim() || null) : null,
+        bezeichnung: indi ? q("#bz").value.trim() : null, beschreibung: indi ? (q("#bs").value.trim() || null) : null,
         vertriebler: q("#v").value, tippgeber: q("#tg") && q("#v").value === "INH" ? (q("#tg").value.trim() || null) : null, notiz: q("#nz").value.trim() || null, stufe: "zusage" };
       try {
         await store.auftragAnlegen(a);
         await store.leadUpdate(l.id, { status: "angebot", wiedervorlage: naechsterWerktag(3, 10).toISOString(), naechster_schritt: "Beauftragung nachfassen" });
-        await store.aktivitaet({ lead_id: l.id, typ: "status", ergebnis: "angebot", text: `Zusage: ${pname(a)}${ind ? " (individuell)" : ""} (${eur(a.setup)}${m_ > 0 ? ` + ${eur(m_)}/Monat` : ""})` });
+        await store.aktivitaet({ lead_id: l.id, typ: "status", ergebnis: "angebot", text: `Zusage: ${pname(a)}${indi ? " (individuell)" : ""}${kanaele() > 1 ? ` (${kanaele()} Kanäle)` : ""} (${eur(a.setup)}${m_ > 0 ? ` + ${eur(m_)}/Monat` : ""})` });
         schliessen(false); zeige("auftraege");
         feiern("Zusage!", `${l.firma} · ${pname(a)} – jetzt Auftrag raus.`, false);
       } catch (err) { fehler(err); }
