@@ -759,8 +759,11 @@
         return `<section class="spalte" aria-label="${esc(t)}"><h3>${esc(t)} <span class="n">${xs.length}</span></h3>${xs.map(auftragCard).join("") || `<div class="leer">–</div>`}</section>`; }).join("")}</div>
       ${as.length > aktiv.length ? `<p class="hint">${as.length - aktiv.length} stornierte Aufträge ausgeblendet.</p>` : ""}`;
   }
+  // Laufzeit: 12 Monate ab Livegang, Verlängerung je 12 Monate, Kündigungsfrist 3 Monate (wie Edge Function abo-kuendigen)
+  const plusMonate = (d, n) => { const [y, m, t] = String(d).slice(0, 10).split("-").map(Number); return new Date(Date.UTC(y, m - 1 + n, t)).toISOString().slice(0, 10); };
+  function laufzeitEnde(live, mindest, eingang) { let ende = plusMonate(live, mindest || 12); while (plusMonate(ende, -3) < eingang) ende = plusMonate(ende, 12); return ende; }
   const ZAHLUNG = { offen: "offen", bezahlt: "bezahlt ✓", fehlgeschlagen: "fehlgeschlagen ⚠" };
-  const ABO = { aktiv: "aktiv", gekuendigt: "gekündigt", beendet: "beendet" };
+  const ABO = { aktiv: "aktiv", gekuendigt: "gekündigt (läuft bis Laufzeitende)", beendet: "beendet" };
   const RSTATUS = { paid: "bezahlt", open: "offen", draft: "Entwurf", void: "storniert", uncollectible: "uneinbringlich" };
   async function auftragSheet(id) {
     let a; try { a = await store.auftrag(id); } catch (e) { return fehler(e); }
@@ -779,6 +782,8 @@
         ${a.notiz ? `<div class="meta"><span>${esc(a.notiz)}</span></div>` : ""}
         ${a.zahlung_status || a.abo_status ? `<div class="kv"><span>Zahlung</span><span>${esc(ZAHLUNG[a.zahlung_status] || a.zahlung_status || "–")}${a.abo_status ? " · Abo " + esc(ABO[a.abo_status] || a.abo_status) : ""}</span></div>` : ""}
         ${a.beauftragt_name && a.zustimmung ? `<div class="kv"><span>Online zugestimmt</span><span>${esc(a.beauftragt_name)} · ${dDE(a.zustimmung.zeit)}</span></div>` : ""}
+        ${a.live_am && +a.monatlich > 0 ? `<div class="kv"><span>Laufzeit</span><span>ab ${dDE(a.live_am)} · ${a.abo_ende ? `<b>gekündigt zum ${dDE(a.abo_ende)}</b>` : `nächstes Ende ${dDE(laufzeitEnde(a.live_am, a.laufzeit_monate, isoDate(new Date())))} (Kündigung bis ${dDE(plusMonate(laufzeitEnde(a.live_am, a.laufzeit_monate, isoDate(new Date())), -3))})`}</span></div>
+          ${inhaber() ? `<div class="actions">${a.abo_ende ? `<button class="btn small" type="button" data-kuend-zurueck="${a.id}">Kündigung zurücknehmen</button>` : `<button class="btn small" type="button" data-kuendigen="${a.id}">Kündigung eintragen</button>`}</div>` : ""}` : ""}
         <div id="rechnungen"></div>
       </div>
       <div class="block">
@@ -805,6 +810,20 @@
       const d = b.dataset;
       if (d.stufe) { e.stopPropagation(); await stufeSetzen(a, d.stufe); }
       if (d.online) { e.stopPropagation(); auftragMailSheet(a); return; }
+      if (d.kuendigen) {
+        e.stopPropagation();
+        const ein = prompt("Kündigung eingegangen am (JJJJ-MM-TT):", isoDate(new Date())); if (!ein) return;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(ein)) return toast("Bitte Datum als JJJJ-MM-TT eingeben");
+        const ende = laufzeitEnde(a.live_am, a.laufzeit_monate, ein);
+        if (!confirm(`Kündigung vom ${dDE(ein)} eintragen? Das Abo endet dann fristgerecht am ${dDE(ende)}` + (a.stripe_subscription_id ? " – bis dahin bucht Stripe normal weiter ab." : "."))) return;
+        try { const r = await store.aboKuendigen({ auftrag_id: a.id, eingang: ein }); toast(`Gekündigt zum ${dDE(r.abo_ende || ende)}`); schliessen(false); auftragSheet(a.id); } catch (err) { toast("Nicht gespeichert: " + err.message); }
+        return;
+      }
+      if (d.kuendZurueck) {
+        e.stopPropagation(); if (!confirm("Kündigung wirklich zurücknehmen? Das Abo läuft dann normal weiter.")) return;
+        try { await store.aboKuendigen({ auftrag_id: a.id, zuruecknehmen: true }); toast("Kündigung zurückgenommen"); schliessen(false); auftragSheet(a.id); } catch (err) { toast("Nicht gespeichert: " + err.message); }
+        return;
+      }
       if (d.beauftragen) { e.stopPropagation(); if (confirm(`${l.firma} hat verbindlich beauftragt (${a.produkt}, ${eur(a.setup)})? Damit gilt es als Abschluss.`)) await beauftragen(a); }
       if (d.stornieren) { e.stopPropagation(); if (confirm("Auftrag wirklich stornieren?" + (a.abschluss_id ? " Der Abschluss bleibt bestehen – bei Bedarf Storno im Vault anlegen." : ""))) await stufeSetzen(a, "storniert"); }
     });

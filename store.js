@@ -89,6 +89,7 @@
     async auftrag(id) { return this._check(this.sb.from("auftraege").select("*, lead:leads(*)").eq("id", id).single()); }
     async auftragAnlegen(a) { return this._check(this.sb.from("auftraege").insert({ ...a, erstellt_von: this.profil.kuerzel }).select().single()); }
     async auftragUpdate(id, patch) { return this._check(this.sb.from("auftraege").update(patch).eq("id", id).select().single()); }
+    async aboKuendigen(x) { const { data, error } = await this.sb.functions.invoke("abo-kuendigen", { body: x }); if (error) { let t = error.message; try { t = (await error.context.json()).fehler || t; } catch (_) {} throw new Error(t); } if (!data || !data.ok) throw new Error((data && data.fehler) || "fehlgeschlagen"); await this.sb.from("auftraege").select("id").eq("id", x.auftrag_id); return data; }
     async rechnungen(auftrag_id) { return this._check(this.sb.from("stripe_rechnungen").select("*").eq("auftrag_id", auftrag_id).order("datum", { ascending: false })); }
     async cockpit() {
       const s = tagStart().toISOString();
@@ -280,6 +281,7 @@
     async setTerminLink(url) { this.d.config.termin_link = url || null; this._save(); }
     async mailBereit() { return true; }
     async rechnungen() { return []; }
+    async aboKuendigen(x) { const a = this.d.auftraege.find(y => y.id === x.auftrag_id); if (!a) throw new Error("nicht gefunden"); if (x.zuruecknehmen) { a.kuendigung_eingang = null; a.abo_ende = null; a.abo_status = "aktiv"; } else { let e = new Date(a.live_am); e.setMonth(e.getMonth() + 12); a.kuendigung_eingang = x.eingang; a.abo_ende = e.toISOString().slice(0, 10); a.abo_status = "gekuendigt"; } this._save(); return { ok: true, abo_ende: a.abo_ende }; }
     async mailSenden(m) { await new Promise(r => setTimeout(r, 500)); const l = this.d.leads.find(x => x.id === m.lead_id); if (l && !m.art) { l.info_mail = "gesendet"; this._save(); } return { ok: true }; }
     async kiMail(lead_id) { await new Promise(r => setTimeout(r, 800)); const l = this.d.leads.find(x => x.id === lead_id) || {}; return { betreff: "Schön, dass wir gesprochen haben", text: `Guten Tag,\n\n(Beispieltext im Demo-Modus – im Live-Betrieb schreibt Claude hier die ganze Mail passend zu ${l.firma || "dem Betrieb"} und Ihren Stichpunkten.)\n\nViele Grüße` }; }
     async calcomWebhook() { return { url: "https://DEMO.supabase.co/functions/v1/calcom", secret: "demo-geheimnis" }; }

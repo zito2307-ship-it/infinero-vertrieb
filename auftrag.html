@@ -78,7 +78,10 @@ footer{margin-top:32px;font-size:12px;color:var(--muted);text-align:center}
       '<p>Ihr Auftrag ist bei uns eingegangen. Die Rechnung für die Einrichtung erhalten Sie per E-Mail' + (a.email ? " an " + esc(a.email) : "") + '.' +
       (a.monatlich > 0 ? ' Der Monatsbeitrag startet erst, wenn Ihre Website live ist.' : '') + '</p>' +
       '<p><b>So geht es weiter:</b> Wir melden uns in den nächsten Tagen für ein kurzes Onboarding-Gespräch, in dem wir alles für Ihre ' +
-      'Website besprechen. Ihr Ansprechpartner: ' + kontakt(a) + '</p></div>';
+      'Website besprechen. Ihr Ansprechpartner: ' + kontakt(a) + '</p>' +
+      (a.onboarding_link ? '<p style="margin-top:18px">Am schnellsten geht es, wenn Sie sich gleich einen Termin dafür aussuchen:</p>' +
+        '<p><a class="los" style="display:inline-block;text-decoration:none;width:auto;padding:14px 22px" href="' + esc(a.onboarding_link) + '" target="_blank" rel="noopener">Onboarding-Termin wählen</a></p>' : '') +
+      '</div>';
   }
 
   function angebot(a) {
