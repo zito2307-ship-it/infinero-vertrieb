@@ -25,45 +25,31 @@
   const MAX_VERSUCHE = 5;
   const SIGNATUR = ["INFINERO – KI-Infrastruktur für Unternehmen", "Closewitzer Straße 19 · 07743 Jena"];
   const MAILTEXT = {
-    WEBSITE: ["Moderne Website", "individuell gestaltet, fürs Handy optimiert und bei Google gut auffindbar", 990, 59],
-    WEBCHAT: ["Web-Chatbot", "beantwortet Kundenfragen rund um die Uhr direkt auf Ihrer Website und nimmt Anfragen entgegen", 690, 79],
-    MSGBOT: ["WhatsApp-/Messenger-Bot", "antwortet automatisch auf Nachrichten, vereinbart Termine und entlastet Ihr Team (je Kanal)", 690, 99],
-    KICALLER: ["KI-Telefonassistent", "nimmt Anrufe an, wenn Sie gerade keine Zeit haben, beantwortet Fragen und notiert Rückrufwünsche", 990, 249],
+    WEBSITE: ["moderne Website", "fürs Handy gemacht, bei Google gut zu finden, mit Online-Terminanfrage", 990, 59],
+    WEBCHAT: ["Web-Chatbot", "beantwortet Fragen auf Ihrer Website rund um die Uhr", 690, 79],
+    MSGBOT: ["WhatsApp-Bot (je Kanal)", "antwortet automatisch auf Nachrichten und vereinbart Termine", 690, 99],
+    KICALLER: ["KI-Telefonassistent", "nimmt Anrufe an, wenn gerade niemand rangehen kann", 990, 249],
   };
-  const WARUM_MONATLICH = "Warum monatlich statt einmalig? Weil im Preis wirklich alles steckt: Hosting, Domain & Sicherheit, laufende Pflege und Updates, die Aktualisierung Ihrer Rechtstexte – und jede Änderung, die Sie sich wünschen: Öffnungs- und Urlaubszeiten, Aktionen, Preise, Fotos, Farben. Eine kurze Nachricht genügt, wir setzen es um – ohne Extra-Rechnung. Gefällt Ihnen Ihr Design irgendwann nicht mehr, gestalten wir Ihre Seite neu.";
-  // Info-Mail-Vorlagen je Zielgruppe (Texte von Ziu). {firma} wird ersetzt.
+  const LEITER_MAIL = [[["WEBSITE", "WEBCHAT"], 1680, 119], [["WEBSITE", "WEBCHAT", "MSGBOT"], 2370, 199], [["WEBSITE", "WEBCHAT", "MSGBOT", "KICALLER"], 3360, 399]];
+  // Ausweich-Vorlage, falls Claude nicht erreichbar ist (Normalfall: Claude schreibt die ganze Mail, Edge Function infomail)
   const VORLAGEN = {
-    gastro: {
-      betreff: "Ihr Tisch bleibt nie mehr unbesetzt – Ihre Infos von INFINERO",
-      gespraech: "das freundliche Telefonat", danach: "schön, dass Sie {firma} nach vorne bringen möchten.",
-      einleitung: "Kurz zusammengefasst, worüber wir gesprochen haben:",
-      nutzen: "Gerade in der Gastronomie geht das meiste Geschäft verloren, wenn im Service niemand ans Telefon kann. Genau da setzen wir an: kein verpasster Anruf, keine verpasste Reservierung – rund um die Uhr.",
-      web: "Ihr aktueller Webauftritt lässt online noch Reservierungen liegen, gerade auf dem Smartphone. Eine moderne Seite mit Online-Reservierung ändert das.",
-      demo: "So könnte das für einen Betrieb wie Ihren aussehen – schauen Sie sich unsere Live-Demo an:",
-      termin: "Wenn Sie mögen, zeige ich Ihnen das in einem kurzen, unverbindlichen Termin (ca. 15 Min.) live an Ihrem Fall",
-      stopp: "Und falls Sie keine weiteren Informationen wünschen, sagen Sie einfach kurz Bescheid – dann melden wir uns nicht wieder.",
-    },
-    beauty: {
-      betreff: "Mehr Termine – auch wenn Sie längst Feierabend haben",
-      gespraech: "das nette Telefonat", danach: "ich freue mich, dass {firma} das Thema angehen möchte.",
-      einleitung: "Das ist der Überblick zu dem, was Sie interessiert:",
-      nutzen: "Viele Kundinnen fragen genau dann an, wenn Sie gerade an der Kundin arbeiten oder längst Feierabend haben. Mit automatischer Beantwortung und Terminbuchung über WhatsApp geht keine Anfrage mehr verloren – ohne dass Sie ständig aufs Handy schauen müssen.",
-      web: "Ihr aktueller Auftritt online wirkt noch nicht so hochwertig wie Ihre Arbeit im Studio. Eine ruhige, moderne Seite mit Online-Buchung passt das an.",
-      demo: "So fühlt sich das für ein Studio wie Ihres an – hier unsere Live-Demo:",
-      termin: "Gern zeige ich Ihnen das in einem kurzen, unverbindlichen Termin (ca. 15 Min.) direkt an Ihrem Beispiel",
-      stopp: "Und falls Sie keine weiteren Informationen wünschen, geben Sie mir einfach kurz Bescheid – dann melden wir uns nicht wieder.",
-    },
-    handwerk: {
-      betreff: "Keine verpasste Anfrage mehr – Ihr Angebot von INFINERO",
-      gespraech: "das Gespräch", danach: "gut, dass wir bei {firma} ins Tun kommen.",
-      einleitung: "Hier noch einmal, worüber wir gesprochen haben:",
-      nutzen: "Als Handwerker sind Sie auf der Baustelle, nicht am Telefon – und genau da gehen Aufträge verloren. Mit einer Website, die Anfragen bringt, und einem Assistenten, der verpasste Anrufe zurückholt, landet jede Anfrage bei Ihnen statt beim Wettbewerb.",
-      web: "Ihr aktueller Webauftritt bringt online noch zu wenige Anfragen – gerade mobil. Eine moderne Seite mit klarer Rückruf-Funktion ändert das.",
-      demo: "So sieht das für einen Betrieb wie Ihren aus – schauen Sie in unsere Live-Demo:",
-      termin: "Wenn Sie mögen, gehe ich das in einem kurzen, unverbindlichen Termin (ca. 15 Min.) mit Ihnen durch",
-      stopp: "Und falls Sie keine weiteren Informationen wünschen, sagen Sie einfach kurz Bescheid – dann melden wir uns nicht wieder.",
-    },
+    gastro: { betreff: "Wie besprochen – Ihre Infos von INFINERO",
+      nutzen: "Gerade im Service kann oft niemand ans Telefon – und genau dann gehen Reservierungen verloren. Das würden wir Ihnen gern abnehmen." },
+    beauty: { betreff: "Wie besprochen – Ihre Infos von INFINERO",
+      nutzen: "Viele Anfragen kommen genau dann, wenn Sie gerade bei einer Kundin sind oder längst Feierabend haben. Damit trotzdem keine verloren geht, würden wir Ihnen gern etwas Arbeit abnehmen." },
+    handwerk: { betreff: "Wie besprochen – Ihre Infos von INFINERO",
+      nutzen: "Wer auf der Baustelle steht, kann nicht ans Telefon – und Anfragen landen dann schnell beim Nächsten. Genau da setzen wir an." },
+    allgemein: { betreff: "Wie besprochen – Ihre Infos von INFINERO",
+      nutzen: "Kurz gesagt: Wir sorgen dafür, dass man Sie online gut findet und unkompliziert erreicht – und nehmen Ihnen dabei so viel Arbeit wie möglich ab." },
   };
+  // Anrede ohne geratenes Geschlecht: „Hallo Herr/Frau …“ nur wenn angegeben, sonst Titel oder voller Name
+  function anrede(l) {
+    const a = String(l.ansprechpartner || "").trim();
+    if (/^(herr|frau)\s/i.test(a)) return `Hallo ${a},`;
+    const dr = /\bDr\.?\s/.test(`${a} ${l.firma || ""}`) && a ? a.split(/\s+/).pop() : null;
+    if (dr) return `Guten Tag Dr. ${dr},`;
+    return a ? `Guten Tag ${a},` : "Guten Tag,";
+  }
   const SATZ_V = 0.5, SATZ_T = 0.25;
   const ART = { vor_ort: "Vor Ort", telefon: "Telefon", video: "Video" };
 
@@ -301,51 +287,55 @@
   }
   function schliessen(neu = true) { $("#sheet").innerHTML = ""; document.body.style.overflow = ""; if (neu) zeige(); }
 
-  function infoMail(l, ki) {
-    const v = VORLAGEN[l.zielgruppe] || VORLAGEN.handwerk;
+  function infoMail(l) {
+    const v = VORLAGEN[l.zielgruppe] || VORLAGEN.allgemein;
     const z = (S.zg || []).find(x => x.id === l.zielgruppe);
     const ich = (store.mode === "live" && S.team.find(t => t.kuerzel === S.profil.kuerzel)) || S.view;
     const euro = n => n.toLocaleString("de-DE") + " €";
-    const prods = (l.interesse_produkte || []).filter(c => MAILTEXT[c]);
-    const produkte = (prods.length ? prods : ["WEBSITE"]).map(c => { const [t, d, e, m] = MAILTEXT[c]; return `• ${t} – ${d}\n  Einrichtung ${euro(e)}, danach ${euro(m)} im Monat`; }).join("\n\n");
+    const prods = [...new Set((l.interesse_produkte || []).filter(c => MAILTEXT[c]))];
+    if (!prods.length) prods.push("WEBSITE");
+    const paket = LEITER_MAIL.find(([k]) => k.length === prods.length && k.every(c => prods.includes(c)));
+    const liste = prods.map(c => `– ${MAILTEXT[c][0]}: ${MAILTEXT[c][1]}` + (paket ? "" : ` (einmalig ${euro(MAILTEXT[c][2])}, dann ${euro(MAILTEXT[c][3])} im Monat)`)).join("\n")
+      + (paket ? `\nZusammen: einmalig ${euro(paket[1])}, dann ${euro(paket[2])} im Monat` : "");
     const kollege = l.owner && l.owner !== ich.kuerzel ? ` mit meinem Kollegen ${name(l.owner)}` : "";
     const link = ich.termin_link || (S.cfg && S.cfg.termin_link);
     const teile = [
-      l.ansprechpartner ? `Guten Tag ${l.ansprechpartner},` : "Guten Tag,",
-      `vielen Dank für ${v.gespraech}${kollege} – ${v.danach.replace("{firma}", l.firma)}`,
-      ki || "",
-      `${v.einleitung}\n\n${produkte}\n\n(alle Preise netto, zzgl. USt.)`,
-      WARUM_MONATLICH,
+      anrede(l),
+      `danke für das nette Telefonat${kollege} – wie versprochen hier kurz das Wichtigste.`,
       v.nutzen,
-      !l.website || l.website_bewertung === "veraltet" || l.website_bewertung === "keine" ? v.web : "",
-      z && z.demo_url ? `${v.demo}\n👉 ${z.demo_url}` : "",
-      link ? `${v.termin}:\n👉 ${link}` : `${v.termin} – antworten Sie einfach auf diese Mail mit Ihrem Wunschtermin.`,
-      v.stopp,
-      ["Mit besten Grüßen", ich.name, ...SIGNATUR, [ich.telefon ? "Tel.: " + ich.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n"),
+      `Was wir Ihnen vorschlagen würden (Preise netto zzgl. USt):\n${liste}`,
+      "Im Monatsbeitrag steckt alles Laufende – Hosting, Pflege, Sicherheit und jede Änderung, die Sie sich wünschen, ohne Extra-Rechnung. Und er beginnt erst, wenn Ihre Seite live ist.",
+      z && z.demo_url ? `So könnte das aussehen – eine Beispielseite für Ihre Branche:\n${z.demo_url}` : "",
+      link ? `Wenn Sie mögen, zeige ich Ihnen das in 15 Minuten am Telefon. Hier können Sie sich direkt einen Termin aussuchen:\n${link}` : "Wenn Sie mögen, zeige ich Ihnen das in 15 Minuten am Telefon – antworten Sie einfach kurz mit einem Wunschtermin.",
+      "Und falls es gerade nicht passt: Eine kurze Nachricht genügt, dann melden wir uns nicht wieder.",
+      ["Viele Grüße", ich.name, "", ...SIGNATUR, [ich.telefon ? "Tel. " + ich.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n"),
     ];
     return { an: l.email || "", betreff: v.betreff, text: teile.filter(Boolean).join("\n\n") };
   }
   const mailtoVon = (an, betreff, text) => `mailto:${encodeURIComponent(an)}?subject=${encodeURIComponent(betreff)}&body=${encodeURIComponent(text)}`;
 
-  // Vorschau: Vorlage + persönlicher Absatz von Claude, vor dem Öffnen noch änderbar
+  // Vorschau: Claude schreibt die ganze Mail (Edge Function infomail); Stichpunkte aus dem Telefonat machen sie persönlicher
   async function infoMailSheet(id) {
     let l; try { l = await store.lead(id); } catch (e) { return fehler(e); }
     const root = sheet("Info-Mail · " + l.firma, `
       <form id="imf" class="form">
+        <div class="field full"><label for="im_sp">Was war im Gespräch wichtig? <small>(Stichpunkte, optional)</small></label>
+          <textarea id="im_sp" rows="3" placeholder="z. B. Telefon ständig besetzt, will Online-Termine, bespricht es mit seiner Frau"></textarea></div>
+        <div class="full actions"><button class="btn" type="button" id="im_neu">✨ Mit Claude neu schreiben</button></div>
+        <p class="hint full" id="im_ki">✨ Claude schreibt die Mail …</p>
         <div class="field full"><label for="im_an">An</label><input id="im_an" type="email" value="${esc(l.email)}"></div>
         <div class="field full"><label for="im_b">Betreff</label><input id="im_b"></div>
-        <div class="field full"><label for="im_t">Text</label><textarea id="im_t" rows="18"></textarea></div>
-        <p class="hint full" id="im_ki">✨ Claude schreibt den persönlichen Absatz …</p>
+        <div class="field full"><label for="im_t">Text</label><textarea id="im_t" rows="20"></textarea></div>
         <div class="full actions" id="im_direkt" hidden><button class="btn primary" type="button" id="im_send">Direkt senden</button></div>
         <p class="hint full" id="im_direkt_hint" hidden>Geht sofort von <b>kontakt@infinero.de</b> raus – Antworten und eine Kopie landen im Postfach kontakt@.</p>
         <div class="full actions"><a class="btn" id="im_open" href="#">In Mail-App öffnen</a><button class="btn" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>
         <p class="hint full" id="im_app_hint">Mail-App: Absender <b>kontakt@infinero.de</b> wählen. Nach dem Senden „Als gesendet markieren“.</p>
       </form>`);
     const q = s => root.querySelector(s);
-    const setzen = ki => { const d = infoMail(l, ki); q("#im_b").value = d.betreff; q("#im_t").value = d.text; aktualisieren(); };
+    const setzen = d => { q("#im_b").value = d.betreff; q("#im_t").value = d.text; aktualisieren(); };
     const aktualisieren = () => { q("#im_open").href = mailtoVon(q("#im_an").value.trim(), q("#im_b").value, q("#im_t").value); };
     ["#im_an", "#im_b", "#im_t"].forEach(s => q(s).addEventListener("input", aktualisieren));
-    setzen("");
+    setzen(infoMail(l));
     store.mailBereit().then(ok => { if (ok) { q("#im_direkt").hidden = false; q("#im_direkt_hint").hidden = false; q("#im_open").classList.remove("primary"); } else q("#im_open").classList.add("primary"); });
     q("#im_send").addEventListener("click", async e => {
       const an = q("#im_an").value.trim(), b = e.currentTarget;
@@ -355,11 +345,20 @@
       try { await store.mailSenden({ lead_id: l.id, an, betreff: q("#im_b").value, text: q("#im_t").value }); toast("Info-Mail gesendet ✓"); schliessen(); }
       catch (err) { b.disabled = false; b.textContent = "Direkt senden"; toast("Nicht gesendet: " + err.message); }
     });
-    try {
-      const r = await Promise.race([store.kiAbsatz(l.id), new Promise((_, x) => setTimeout(() => x(new Error("Zeitüberschreitung")), 25000))]);
-      if (r.absatz) { setzen(r.absatz); q("#im_ki").textContent = "✨ Persönlicher Absatz von Claude eingefügt (2. Absatz) – bei Bedarf einfach anpassen."; }
-      else q("#im_ki").textContent = "Ohne persönlichen Absatz (" + (r.grund || "keine Antwort") + ") – die Vorlage ist vollständig.";
-    } catch (e) { q("#im_ki").textContent = "Claude gerade nicht erreichbar – die Vorlage ist vollständig und kann so raus."; }
+    let laeuft = false;
+    const schreiben = async () => {
+      if (laeuft) return; laeuft = true;
+      const btn = q("#im_neu"); btn.disabled = true;
+      q("#im_ki").textContent = "✨ Claude schreibt die Mail … (dauert ein paar Sekunden)";
+      try {
+        const r = await Promise.race([store.kiMail(l.id, q("#im_sp").value.trim()), new Promise((_, x) => setTimeout(() => x(new Error("Zeitüberschreitung")), 60000))]);
+        if (r.betreff && r.text) { setzen(r); q("#im_ki").textContent = "✨ Von Claude geschrieben – lies kurz drüber und pass an, was nicht stimmt. Nicht zufrieden? Stichpunkte ergänzen und neu schreiben."; }
+        else q("#im_ki").textContent = "Claude hat gerade nicht geliefert (" + (r.grund || "keine Antwort") + ") – unten steht die Standard-Vorlage.";
+      } catch (e) { q("#im_ki").textContent = "Claude gerade nicht erreichbar – unten steht die Standard-Vorlage, die kann so raus."; }
+      btn.disabled = false; laeuft = false;
+    };
+    q("#im_neu").addEventListener("click", schreiben);
+    schreiben();
   }
 
   // Online-Auftrag: Link zur Auftragsseite (Angebot → Zustimmung → Zahlung über Stripe)
@@ -369,12 +368,12 @@
     const ich = (store.mode === "live" && S.team.find(t => t.kuerzel === S.profil.kuerzel)) || S.view;
     const p = (PRODUKTE.find(x => x.code === a.produkt) || {}).name || a.produkt;
     const text = [
-      l.ansprechpartner ? `Guten Tag ${l.ansprechpartner},` : "Guten Tag,",
+      anrede(l),
       "vielen Dank für Ihre Zusage – wir freuen uns sehr auf die Zusammenarbeit!",
-      `Unter folgendem Link finden Sie Ihr Angebot (${p}) mit allen Konditionen. Dort können Sie den Auftrag mit wenigen Klicks erteilen und Ihre Zahlungsart hinterlegen (SEPA-Lastschrift oder Karte):\n👉 ${auftragLink(a)}`,
+      `Unter diesem Link finden Sie Ihr Angebot (${p}) mit allen Konditionen. Dort können Sie den Auftrag mit wenigen Klicks erteilen und Ihre Zahlungsart hinterlegen (SEPA-Lastschrift oder Karte). Fällig wird jetzt nur die Einrichtung – der Monatsbeitrag beginnt erst, wenn Ihre Website live ist:\n${auftragLink(a)}`,
       "Sobald der Auftrag da ist, melden wir uns für ein kurzes Onboarding-Gespräch, in dem wir alles für Ihre Website besprechen.",
       "Bei Fragen erreichen Sie mich jederzeit.",
-      ["Mit besten Grüßen", ich.name, ...SIGNATUR, [ich.telefon ? "Tel.: " + ich.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n"),
+      ["Viele Grüße", ich.name, "", ...SIGNATUR, [ich.telefon ? "Tel. " + ich.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n"),
     ].join("\n\n");
     return { an: l.email || "", betreff: `Ihr Auftrag bei INFINERO – ${l.firma || p}`, text };
   }

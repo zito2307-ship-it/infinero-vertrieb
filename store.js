@@ -110,7 +110,7 @@
     async calcomWebhook() { return this._check(this.sb.rpc("calcom_webhook")); }
     async mailBereit() { try { return !!(await this._check(this.sb.rpc("mailversand_bereit"))); } catch (e) { return false; } }
     async mailSenden(m) { const { data, error } = await this.sb.functions.invoke("mailsenden", { body: m }); if (error) { let t = error.message; try { t = (await error.context.json()).fehler || t; } catch (_) {} throw new Error(t); } if (!data || !data.ok) throw new Error((data && data.fehler) || "Versand fehlgeschlagen"); return data; }
-    async kiAbsatz(lead_id) { const { data, error } = await this.sb.functions.invoke("infomail", { body: { lead_id } }); if (error) throw error; return data || {}; }
+    async kiMail(lead_id, stichpunkte) { const { data, error } = await this.sb.functions.invoke("infomail", { body: { lead_id, stichpunkte: stichpunkte || null } }); if (error) throw error; return data || {}; }
     async setProfil(telefon, termin_link) { await this._check(this.sb.rpc("mein_profil_setzen", { p_telefon: telefon || "", p_termin_link: termin_link || "" })); }
     async statistikTage(von, bis) { return this._check(this.sb.rpc("statistik_tage", { p_von: von, p_bis: bis })); }
     async statistikGruppen(von, bis, dimension, nur) { return this._check(this.sb.rpc("statistik_gruppen", { p_von: von, p_bis: bis, dimension, nur: nur || null })); }
@@ -281,7 +281,7 @@
     async mailBereit() { return true; }
     async rechnungen() { return []; }
     async mailSenden(m) { await new Promise(r => setTimeout(r, 500)); const l = this.d.leads.find(x => x.id === m.lead_id); if (l && !m.art) { l.info_mail = "gesendet"; this._save(); } return { ok: true }; }
-    async kiAbsatz() { await new Promise(r => setTimeout(r, 600)); return { absatz: "Schön, dass wir über Ihre Situation im Studio sprechen konnten – gerade weil viele Anfragen abends per WhatsApp kommen, während Sie noch bei der Kundin sind. Genau dafür haben wir Ihnen unten zusammengestellt, wie eine automatische Antwort und Terminbuchung bei Ihnen aussehen könnte. (Beispieltext im Demo-Modus)" }; }
+    async kiMail(lead_id) { await new Promise(r => setTimeout(r, 800)); const l = this.d.leads.find(x => x.id === lead_id) || {}; return { betreff: "Schön, dass wir gesprochen haben", text: `Guten Tag,\n\n(Beispieltext im Demo-Modus – im Live-Betrieb schreibt Claude hier die ganze Mail passend zu ${l.firma || "dem Betrieb"} und Ihren Stichpunkten.)\n\nViele Grüße` }; }
     async calcomWebhook() { return { url: "https://DEMO.supabase.co/functions/v1/calcom", secret: "demo-geheimnis" }; }
     async setProfil(telefon, termin_link) { Object.assign(this.d.team.find(t => t.kuerzel === this.profil.kuerzel), { telefon: telefon || null, termin_link: termin_link || null }); this._save(); }
     _tageLive() {
