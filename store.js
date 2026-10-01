@@ -33,7 +33,8 @@
     async team() { return this._check(this.sb.from("profiles").select("kuerzel,name,rolle,tagesziel,telefon,termin_link").order("rolle", { ascending: false })); }
 
     async tageslisteStart() { return this._check(this.sb.rpc("tagesliste_start")); }
-    async nachladen(n) { return this._check(this.sb.rpc("leads_nachladen", { anzahl: n, fuer: this.k })); }
+    async nachladen(n, zielgruppe = null) { return this._check(this.sb.rpc("leads_nachladen", { anzahl: n, fuer: this.k, zielgruppe })); }
+    async poolZahlen() { return this._check(this.sb.rpc("pool_verfuegbar")); }
 
     async heute() {
       const k = this.k, s = tagStart().toISOString(), e = tagEnde().toISOString();
@@ -43,7 +44,7 @@
         this._check(this.sb.from("leads").select("*").eq("owner", k).in("status", OFFEN).eq("gesperrt", false)
           .lte("wiedervorlage", e).order("wiedervorlage")),
         this._check(this.sb.from("leads").select("*").eq("owner", k).eq("status", "neu").eq("gesperrt", false)
-          .order("prio", { ascending: false }).order("id").limit(1000)),
+          .order("prio", { ascending: false }).order("reihe", { ascending: true, nullsFirst: false }).order("id").limit(1000)),
         this.sb.from("aktivitaeten").select("id", { count: "exact", head: true }).eq("von", k).eq("typ", "anruf").gte("zeit", s),
       ]);
       return { termine, faellig, neue, anrufe: anrufe.count || 0 };
@@ -184,13 +185,19 @@
     get k() { return this.ansicht || this.profil.kuerzel; }
     async signOut() {}
     async team() { return this.d.team; }
-    _zuteilen(n, k) {
-      const fokus = new Date().getDay() === 1 ? "handwerk" : this.d.config.fokus;
-      const pool = this.d.leads.filter(l => !l.owner && l.status === "neu" && !l.gesperrt)
-        .sort((a, b) => (b.zielgruppe === fokus) - (a.zielgruppe === fokus) || b.prio - a.prio || a.id - b.id).slice(0, n);
-      pool.forEach(l => { l.owner = k; l.zugeteilt_am = new Date().toISOString(); });
+    // wie leads_zuteilen in der Datenbank: Zielgruppe wählbar, je Branche Blöcke à 5
+    _zuteilen(n, k, zg = null) {
+      const fokus = zg || (new Date().getDay() === 1 ? "handwerk" : this.d.config.fokus);
+      const kand = this.d.leads.filter(l => !l.owner && l.status === "neu" && !l.gesperrt && (!zg || l.zielgruppe === zg)).sort((a, b) => a.id - b.id);
+      const rn = {}; kand.forEach(l => { const key = l.prio + "|" + l.branche; rn[key] = (rn[key] || 0) + 1; l._rn = rn[key]; });
+      const pool = kand.sort((a, b) => (b.zielgruppe === fokus) - (a.zielgruppe === fokus) || b.prio - a.prio
+        || Math.floor((a._rn - 1) / 5) - Math.floor((b._rn - 1) / 5) || String(a.branche).localeCompare(String(b.branche)) || a._rn - b._rn).slice(0, n);
+      const basis = (this.d.reiheSeq = (this.d.reiheSeq || 0) + 1) * 1000;
+      pool.forEach((l, i) => { l.owner = k; l.zugeteilt_am = new Date().toISOString(); l.reihe = basis + i + 1; });
+      kand.forEach(l => delete l._rn);
       this._save(); return pool.length;
     }
+    async poolZahlen() { const o = {}; this.d.zielgruppen.forEach(z => { o[z.id] = this.d.leads.filter(l => !l.owner && l.status === "neu" && !l.gesperrt && l.zielgruppe === z.id).length; }); return o; }
     async tageslisteStart() {
       const heute = new Date().toISOString().slice(0, 10), k = this.k, p = this.d.team.find(t => t.kuerzel === k);
       if (this.d.tagesliste_am[k] === heute) return 0;
@@ -198,7 +205,7 @@
       const offen = this.d.leads.filter(l => l.owner === k && l.status === "neu").length;
       return this._zuteilen(Math.max((p.tagesziel ?? 100) - offen, 0), k);
     }
-    async nachladen(n) { return this._zuteilen(n, this.k); }
+    async nachladen(n, zielgruppe = null) { return this._zuteilen(n, this.k, zielgruppe); }
     _lead(l) { return { ...l, interesse_produkte: [...(l.interesse_produkte || [])] }; }
     async heute() {
       const k = this.k, s = tagStart(), e = tagEnde();
@@ -206,7 +213,7 @@
         .sort((a, b) => a.beginn.localeCompare(b.beginn)).map(t => ({ ...t, lead: this.d.leads.find(l => l.id === t.lead_id) }));
       const faellig = this.d.leads.filter(l => l.owner === k && OFFEN.includes(l.status) && !l.gesperrt && l.wiedervorlage && new Date(l.wiedervorlage) <= e)
         .sort((a, b) => a.wiedervorlage.localeCompare(b.wiedervorlage)).map(x => this._lead(x));
-      const neue = this.d.leads.filter(l => l.owner === k && l.status === "neu" && !l.gesperrt).sort((a, b) => b.prio - a.prio || a.id - b.id).map(x => this._lead(x));
+      const neue = this.d.leads.filter(l => l.owner === k && l.status === "neu" && !l.gesperrt).sort((a, b) => b.prio - a.prio || (a.reihe ?? 1e15) - (b.reihe ?? 1e15) || a.id - b.id).map(x => this._lead(x));
       const anrufe = this.d.akt.filter(a => a.von === k && a.typ === "anruf" && new Date(a.zeit) >= s).length;
       return { termine, faellig, neue, anrufe };
     }

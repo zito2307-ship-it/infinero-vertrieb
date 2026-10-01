@@ -233,8 +233,14 @@
       <h2 class="sec">Wiedervorlagen &amp; Rückrufe <span class="n">${h.faellig.length}</span></h2>
       <div class="list" id="listFaellig">${h.faellig.length ? h.faellig.map(l => callCard(l, { prio: true })).join("") : `<div class="empty">Nichts fällig.</div>`}</div>
       <h2 class="sec">Neue Leads <span class="n">${h.neue.length}${ziel ? " · Tagesziel " + ziel : ""}</span></h2>
-      <div class="list" id="listNeu">${h.neue.length ? h.neue.map(l => callCard(l)).join("") : `<div class="empty">Keine neuen Leads mehr in deiner Liste.</div>`}</div>
-      <button class="btn block more" type="button" id="more">+${schritt()} Leads laden</button>
+      ${(() => { // Filter nach Zielgruppe, sobald mehrere in der Liste sind (z. B. nach „Leads laden“ für einen Beauty-Block)
+        const da = (S.zg || []).filter(z => h.neue.some(l => l.zielgruppe === z.id));
+        if (da.length < 2) { S.neuFilter = null; return ""; }
+        if (S.neuFilter && !da.some(z => z.id === S.neuFilter)) S.neuFilter = null;
+        return `<div class="chips scroll" style="margin-bottom:8px"><button class="chip" type="button" data-neufilter="" aria-pressed="${!S.neuFilter}">Alle ${h.neue.length}</button>${da.map(z => `<button class="chip" type="button" data-neufilter="${z.id}" aria-pressed="${S.neuFilter === z.id}">${esc(z.name)} ${h.neue.filter(l => l.zielgruppe === z.id).length}</button>`).join("")}</div>`; })()}
+      ${(() => { const liste = S.neuFilter ? h.neue.filter(l => l.zielgruppe === S.neuFilter) : h.neue;
+        return `<div class="list" id="listNeu">${liste.length ? liste.map(l => callCard(l)).join("") : `<div class="empty">Keine neuen Leads mehr in deiner Liste.</div>`}</div>`; })()}
+      <button class="btn block more" type="button" id="more">+ Leads laden</button>
       <p class="hint">Nicht bearbeitete Leads bleiben in deiner Liste und stehen morgen wieder hier.</p>`;
   }
 
@@ -623,6 +629,40 @@
         const n = (fd.get("notiz") || "").toString().trim(); if (n) await store.aktivitaet({ lead_id: l.id, typ: "notiz", text: n });
         toast("Gespeichert"); detail(l.id);
       } catch (err) { fehler(err); }
+    });
+  }
+
+  // „Leads laden“: Zielgruppe und Anzahl frei wählen – z. B. ein Nachmittagsblock Beauty statt der Wochenfokus-Gruppe
+  async function ladenSheet() {
+    let zahlen = {}; try { zahlen = await store.poolZahlen() || {}; } catch (e) { console.warn(e); }
+    const fokusId = new Date().getDay() === 1 ? "handwerk" : (S.cfg || {}).fokus;
+    const zgs = S.zg || [];
+    const frei = z => zahlen[z.id] === undefined || zahlen[z.id] > 0;
+    let wahl = (zgs.find(z => z.id === fokusId && frei(z)) || zgs.find(frei) || zgs[0] || {}).id, anzahl = schritt();
+    const root = sheet("Leads laden", `
+      <div class="lbl">Zielgruppe</div>
+      <div class="chips" id="lz_zg">${zgs.map(z => `<button class="chip" type="button" data-zg="${z.id}" aria-pressed="${z.id === wahl}"${zahlen[z.id] === 0 ? " disabled" : ""}>${esc(z.name)}${z.id === fokusId ? " · Fokus" : ""} <small>(${zahlen[z.id] ?? "?"} frei)</small></button>`).join("")}</div>
+      <div class="lbl" style="margin-top:14px">Wie viele?</div>
+      <div class="chips" id="lz_n">${[10, 20, 50].map(n => `<button class="chip" type="button" data-n="${n}" aria-pressed="${n === anzahl}">${n}</button>`).join("")}</div>
+      <p class="hint" id="lz_hint"></p>
+      <div class="actions"><button class="btn primary block" type="button" id="lz_go">Laden</button></div>
+      <p class="hint">Die geladenen Leads erscheinen unter „Neue Leads“ – bei mehreren Zielgruppen in der Liste kannst du oben filtern. Die Leads sind gemischt: höchstens 5 gleiche Betriebe am Stück.</p>`);
+    const q = s => root.querySelector(s);
+    const hinweis = () => { const z = zgs.find(x => x.id === wahl); q("#lz_hint").textContent = z && z.anrufzeit ? "Beste Anrufzeit: " + z.anrufzeit : ""; q("#lz_go").textContent = `${anzahl} ${z ? z.name : ""}-Leads laden`; };
+    hinweis();
+    root.addEventListener("click", async e => {
+      const b = e.target.closest("button"); if (!b || b.disabled) return;
+      if (b.dataset.zg) { wahl = b.dataset.zg; root.querySelectorAll("[data-zg]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); hinweis(); }
+      if (b.dataset.n) { anzahl = +b.dataset.n; root.querySelectorAll("[data-n]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); hinweis(); }
+      if (b.id === "lz_go") {
+        b.disabled = true;
+        try {
+          const n = await store.nachladen(anzahl, wahl);
+          const z = zgs.find(x => x.id === wahl);
+          if (n) { S.neuFilter = wahl; toast(`${n} ${z ? z.name : ""}-Leads geladen`); } else toast("Für diese Zielgruppe ist gerade nichts frei – Nachschub kommt über Nacht.");
+          schliessen(false); await zeige();
+        } catch (err) { fehler(err); b.disabled = false; }
+      }
     });
   }
 
@@ -1219,7 +1259,8 @@
     if (ds.mailok) { try { await store.leadUpdate(+ds.mailok, { info_mail: "gesendet" }); await store.aktivitaet({ lead_id: +ds.mailok, typ: "mail", text: "Info-Mail gesendet" }); toast("Als gesendet markiert"); schliessen(); } catch (err) { fehler(err); } return; }
     if (ds.demo) { try { await store.leadUpdate(id, { demo_website: ds.demo }); toast("Demo-Website: " + (ds.demo === "fertig" ? "fertig" : "in Arbeit")); zeige(); } catch (err) { fehler(err); } return; }
     if (ds.copy) { try { await navigator.clipboard.writeText(ds.copy); toast("Kopiert"); } catch (err) { toast(ds.copy); } return; }
-    if (t.id === "more") { if (S.loadingMore) return; S.loadingMore = true; t.disabled = true; try { const n = await store.nachladen(schritt()); toast(n ? `${n} weitere Leads geladen` : "Der Pool ist gerade leer – Nachschub kommt über Nacht."); await zeige(); } catch (err) { fehler(err); } S.loadingMore = false; return; }
+    if (t.id === "more") return ladenSheet();
+    if (t.dataset && "neufilter" in t.dataset) { S.neuFilter = t.dataset.neufilter || null; return zeige(); }
     if (t.id === "fab") return neuerLead();
     if (t.id === "me") return profilSheet();
     if (t.id === "theme") return setTheme(aktuellesTheme() === "dark" ? "light" : "dark");
