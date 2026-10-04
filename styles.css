@@ -186,3 +186,4 @@ table.stats td:first-child{white-space:nowrap}
 .demobox{background:var(--surface-2);border-radius:10px;padding:8px 10px;font-size:13.5px;display:flex;flex-direction:column;gap:3px}
 .demoinfos{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-left:3px solid var(--accent);padding-left:10px}
 .demoinfos[hidden]{display:none}
+.neu-notes ul{margin:6px 0 0;padding-left:18px}.neu-notes li{margin:0 0 6px;line-height:1.45}

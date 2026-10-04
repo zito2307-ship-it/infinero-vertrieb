@@ -99,7 +99,9 @@ footer{margin-top:32px;font-size:12px;color:var(--muted);text-align:center}
 
     if (a.monatlich > 0) html += '<div class="card"><h2>Im Monatsbeitrag enthalten</h2><ul class="haken">' +
       "<li>Hosting, SSL-Zertifikat und tägliche Sicherungen</li><li>Technische Wartung, Updates und Sicherheit</li>" +
-      "<li>Inhaltliche Änderungen, die Sie uns einfach schicken</li><li>Persönlicher Ansprechpartner statt Hotline</li></ul></div>";
+      "<li>Inhaltliche Änderungen, die Sie uns einfach schicken</li>" +
+      (["WEBSITE", "PAKET-1", "PAKET-2", "PAKET-3", "PAKET-4"].indexOf(a.produkt) >= 0 && !a.bezeichnung ? "<li>Sichtbarkeit: Pflege Ihres Google-Eintrags, fit für KI-Suche, monatlicher Bericht</li>" : "") +
+      "<li>Persönlicher Ansprechpartner statt Hotline</li></ul></div>";
 
     html += '<div class="card"><h2>Beauftragen</h2>' +
       '<p class="klein" style="margin-top:0">Nach dem Klick geben Sie beim Zahlungsanbieter Stripe Ihre Zahlungsart an (SEPA-Lastschrift oder Karte). ' + (a.monatlich > 0 ? 'Jetzt wird nur die Einrichtung berechnet; der Monatsbeitrag wird ab dem Livegang über dieselbe Zahlungsart eingezogen.' : 'Berechnet wird einmalig der oben genannte Betrag, es fallen keine laufenden Kosten an.') + ' Die Rechnungen kommen automatisch per E-Mail.</p>' +

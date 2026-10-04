@@ -4,11 +4,11 @@
 
   // ---------------------------------------------------------------- Stammdaten
   const PRODUKTE = [
-    { code: "PAKET-1", name: "Stufe 1 · Website", setup: 990, monat: 59 },
-    { code: "PAKET-2", name: "Stufe 2 · + Web-Chatbot", setup: 1680, monat: 119 },
-    { code: "PAKET-3", name: "Stufe 3 · + Messaging-Bot", setup: 2370, monat: 199 },
-    { code: "PAKET-4", name: "Stufe 4 · + KI-Caller", setup: 3360, monat: 399 },
-    { code: "WEBSITE", name: "Website (einzeln)", setup: 990, monat: 59 },
+    { code: "PAKET-1", name: "Stufe 1 · Website „Sichtbar“", setup: 1490, monat: 99 },
+    { code: "PAKET-2", name: "Stufe 2 · + Web-Chatbot", setup: 2180, monat: 159 },
+    { code: "PAKET-3", name: "Stufe 3 · + Messaging-Bot", setup: 2870, monat: 239 },
+    { code: "PAKET-4", name: "Stufe 4 · + KI-Caller", setup: 3860, monat: 439 },
+    { code: "WEBSITE", name: "Website „Sichtbar“ (einzeln)", setup: 1490, monat: 99 },
     { code: "WEBCHAT", name: "Web-Chatbot (einzeln)", setup: 690, monat: 79 },
     { code: "MSGBOT", name: "Messaging-Bot je Kanal", setup: 690, monat: 99 },
     { code: "KICALLER", name: "KI-Caller (einzeln)", setup: 990, monat: 249 },
@@ -27,12 +27,12 @@
   const MAX_VERSUCHE = 5;
   const SIGNATUR = ["INFINERO – KI-Infrastruktur für Unternehmen", "Closewitzer Straße 19 · 07743 Jena"];
   const MAILTEXT = {
-    WEBSITE: ["moderne Website", "fürs Handy gemacht, bei Google gut zu finden, mit Online-Terminanfrage", 990, 59],
+    WEBSITE: ["moderne Website", "fürs Handy gemacht und so aufgebaut, dass man Sie findet – bei Google, auf Google Maps und in KI-Assistenten wie ChatGPT, mit Online-Terminanfrage", 1490, 99],
     WEBCHAT: ["Web-Chatbot", "beantwortet Fragen auf Ihrer Website rund um die Uhr", 690, 79],
     MSGBOT: ["WhatsApp-Bot (je Kanal)", "antwortet automatisch auf Nachrichten und vereinbart Termine", 690, 99],
     KICALLER: ["KI-Telefonassistent", "nimmt Anrufe an, wenn gerade niemand rangehen kann", 990, 249],
   };
-  const LEITER_MAIL = [[["WEBSITE", "WEBCHAT"], 1680, 119], [["WEBSITE", "WEBCHAT", "MSGBOT"], 2370, 199], [["WEBSITE", "WEBCHAT", "MSGBOT", "KICALLER"], 3360, 399]];
+  const LEITER_MAIL = [[["WEBSITE", "WEBCHAT"], 2180, 159], [["WEBSITE", "WEBCHAT", "MSGBOT"], 2870, 239], [["WEBSITE", "WEBCHAT", "MSGBOT", "KICALLER"], 3860, 439]];
   // Ausweich-Vorlage, falls Claude nicht erreichbar ist (Normalfall: Claude schreibt die ganze Mail, Edge Function infomail)
   const VORLAGEN = {
     gastro: { betreff: "Wie besprochen – Ihre Infos von INFINERO",
@@ -312,7 +312,7 @@
       `danke für das nette Telefonat${kollege} – wie versprochen hier kurz das Wichtigste.`,
       v.nutzen,
       `Was wir Ihnen vorschlagen würden (Preise netto zzgl. USt):\n${liste}`,
-      "Die 59 € im Monat sind Ihre Website-Flatrate: ein fester Betrag, alles drin – Sie müssen sich nie wieder selbst um Ihre Website kümmern. Jede Änderung – Öffnungs- und Urlaubszeiten, Preise, Aktionen, Texte oder Fotos – tragen wir jederzeit für Sie ein, eine kurze Nachricht genügt. Wir behalten laufend im Blick, ob Impressum und Datenschutz zu den aktuellen Gesetzen passen, und kümmern uns um Hosting, Sicherheit und Updates. Und falls Ihnen das Design nächsten Monat schon nicht mehr gefällt: Dann gestalten wir Ihre Seite eben komplett neu – alles ohne Extra-Kosten. Der Monatsbeitrag beginnt übrigens erst, wenn Ihre Seite live ist.",
+      "Die 99 € im Monat sind Ihre Website-Flatrate: ein fester Betrag, alles drin – Sie müssen sich nie wieder selbst um Ihre Website kümmern. Und wir sorgen dafür, dass man Sie auch findet: Wir pflegen Ihren Eintrag bei Google Maps, machen Sie fit für die Suche mit KI-Assistenten wie ChatGPT und zeigen Ihnen jeden Monat in einem kurzen Bericht, wie oft Sie gefunden wurden. Jede Änderung – Öffnungs- und Urlaubszeiten, Preise, Aktionen, Texte oder Fotos – tragen wir jederzeit für Sie ein, eine kurze Nachricht genügt. Wir behalten laufend im Blick, ob Impressum und Datenschutz zu den aktuellen Gesetzen passen, und kümmern uns um Hosting, Sicherheit und Updates. Und falls Ihnen das Design nächsten Monat schon nicht mehr gefällt: Dann gestalten wir Ihre Seite eben komplett neu – alles ohne Extra-Kosten. Der Monatsbeitrag beginnt übrigens erst, wenn Ihre Seite live ist.",
       z && z.demo_url ? `So könnte das für einen Betrieb wie Ihren aussehen:\n${z.demo_url}` : "Hier können Sie sich Beispiele für verschiedene Branchen ansehen und direkt ausprobieren:\nhttps://infinero.de/demo",
       "Mehr über uns finden Sie auf infinero.de.",
       link ? `Wenn Sie mögen, zeige ich Ihnen das in 15 Minuten am Telefon. Hier können Sie sich direkt einen Termin aussuchen:\n${link}` : "Wenn Sie mögen, zeige ich Ihnen das in 15 Minuten am Telefon – antworten Sie einfach kurz mit einem Wunschtermin.",
@@ -1137,6 +1137,7 @@
       ${store.mode === "live" ? `<h2 class="sec">Passwort ändern</h2><div class="block"><form id="pwneu" class="form"><div class="field"><label for="pn1">Neues Passwort</label><input id="pn1" type="password" autocomplete="new-password" minlength="8" required></div><div class="field" style="justify-content:flex-end"><button class="btn small" type="submit">Speichern</button></div></form></div>` : ""}
       <h2 class="sec">Darstellung</h2><div class="seg" role="group" aria-label="Design">
         <button type="button" data-theme-set="dark" aria-pressed="${aktuellesTheme() === "dark"}">Dunkel</button><button type="button" data-theme-set="light" aria-pressed="${aktuellesTheme() === "light"}">Hell</button></div>
+      <h2 class="sec">Neu in der App</h2><div class="actions"><button class="btn" type="button" id="neu_alle">Was ist neu?</button></div>
       <h2 class="sec">App aufs Handy</h2><div class="block"><p class="hint" style="margin:0">iPhone (Safari): Teilen → „Zum Home-Bildschirm“. Android (Chrome): Menü ⋮ → „App installieren“.</p></div>
       <div class="actions">${store.mode === "demo" ? `<button class="btn" type="button" id="reset">Demo zurücksetzen</button>` : `<button class="btn danger" type="button" id="logout">Abmelden</button>`}</div>`);
     let ziel = null;
@@ -1145,6 +1146,7 @@
       if (b.id === "logout") { await store.signOut(); location.reload(); }
       if (b.id === "pushan") { b.disabled = true; await pushAktivieren(); root.querySelector("#pushblock").innerHTML = pushHTML(); }
       if (b.id === "pushaus") { await pushDeaktivieren(); root.querySelector("#pushblock").innerHTML = pushHTML(); }
+      if (b.id === "neu_alle") { schliessen(false); return neuesZeigen(true); }
       if (b.id === "reset") { await store.zuruecksetzen(); location.reload(); }
       if (b.dataset.themeSet) { setTheme(b.dataset.themeSet); root.querySelectorAll("[data-theme-set]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); }
       if (b.dataset.ansicht) {
@@ -1276,6 +1278,46 @@
   document.addEventListener("change", e => { if (e.target.id === "csvin" && e.target.files[0]) csvImport(e.target.files[0]); });
   let qT; document.addEventListener("input", e => { if (e.target.id === "q") { S.q = e.target.value; clearTimeout(qT); qT = setTimeout(async () => { const pos = e.target.selectionStart; await zeige(); const q = $("#q"); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } }, 300); } });
 
+  // ---------------------------------------------------------------- Neu in der App (Patchnotes)
+  // Bei JEDEM App-Update oben einen Eintrag ergänzen (neueste zuerst, v = Datum JJJJ-MM-TT, bei mehreren am Tag „-2“ usw.).
+  // Nur, was für Ziu/Elias im Alltag wichtig ist – kurz, in Stichpunkten. { t, nur: "inhaber" } = nur für Ziu sichtbar.
+  const NEUES = [
+    { v: "2026-10-04", titel: "Neue Preise: Website „Sichtbar“", punkte: [
+      "Website jetzt <b>1.490 € einmalig + 99 €/Monat</b>: Website-Flatrate <b>plus Sichtbarkeit</b> bei Google, Google Maps und in der KI-Suche (ChatGPT & Co.), mit monatlichem Bericht.",
+      "Das alte Angebot 990 € / 59 € gibt es nicht mehr.",
+      "Leiter neu: Stufe 2 = 2.180 € / 159 € · Stufe 3 = 2.870 € / 239 € · Stufe 4 = 3.860 € / 439 € (Aufpreise wie bisher).",
+      "Deine Provision für eine Website: <b>745 €</b>.",
+      "Info-Mail und Online-Auftrag erklären die Sichtbarkeit automatisch mit.",
+      "Neu: Diese Übersicht kommt nach jedem Update. Später nochmal lesen: Profil (Name oben rechts) → „Was ist neu?“",
+    ] },
+    { v: "2026-10-01", titel: "Leads laden nach Wunsch", punkte: [
+      "„+ Leads laden“ unten in „Heute“: Zielgruppe (Handwerk, Beauty, Restaurants) und Anzahl (10/20/50) frei wählen – z. B. ein Nachmittagsblock Restaurants.",
+      "Über „Neue Leads“ filtern, wenn mehrere Zielgruppen in der Liste sind.",
+      "Gut gemischt: höchstens 5 gleiche Betriebe am Stück.",
+    ] },
+    { v: "2026-09-29", titel: "Zusage & Aufträge", punkte: [
+      "Preise in der Zusage sind fest (Katalog). Beim Messaging-Bot trägst du die Anzahl der Kanäle ein.",
+      "Rabatte und Sonderwünsche: nichts zusagen, an Ziu geben.",
+      { t: "Individuelles Angebot (eigener Preis, eigene Bezeichnung, auch ohne Abo) – nur für dich sichtbar.", nur: "inhaber" },
+      "Die Notiz im Auftrag ist intern – der Kunde sieht sie nicht.",
+    ] },
+  ];
+  const NEU_KEY = "infinero-neu-gesehen";
+  const binInhaber = () => (S.profil && S.profil.rolle === "inhaber") || inhaber();
+  function neuesZeigen(alle = false) {
+    const gesehen = lsGet(NEU_KEY);
+    const liste = NEUES.filter(n => alle || !gesehen || n.v > gesehen).slice(0, alle ? 30 : 3)
+      .map(n => ({ ...n, punkte: n.punkte.filter(x => typeof x === "string" || !x.nur || binInhaber()).map(x => typeof x === "string" ? x : x.t) }));
+    lsSet(NEU_KEY, NEUES[0].v);
+    if (!liste.length) return;
+    const datum = v => new Date(v.slice(0, 10) + "T12:00").toLocaleDateString("de-DE", { day: "numeric", month: "long" });
+    const root = sheet(alle ? "Was ist neu?" : "Neu in der App ✨", `${liste.map(n => `<div class="block neu-notes">
+        <div class="kv"><b>${esc(n.titel)}</b><span class="meta">${esc(datum(n.v))}</span></div>
+        <ul>${n.punkte.map(x => `<li>${x}</li>`).join("")}</ul></div>`).join("")}
+      <div class="actions"><button class="btn primary block" type="button" id="neu_ok">Alles klar</button></div>`);
+    root.querySelector("#neu_ok").addEventListener("click", () => schliessen(false));
+  }
+
   // ---------------------------------------------------------------- Login & Start
   function login(hinweis) {
     $("#tabs").hidden = true; $("#fab").hidden = true; $("#me").hidden = true;
@@ -1303,7 +1345,8 @@
     store.setAnsicht(S.view.kuerzel); kopf();
     if (store.mode === "demo") $("#banner").innerHTML = `<div class="banner">Demo-Modus: Beispieldaten nur auf diesem Gerät. Ansicht wechseln über den Namen oben rechts.</div>`;
     const h = location.hash.slice(1), erlaubt = ["heute", "leads", "termine", "auftraege", "deals", "statistik", ...(inhaber() ? ["cockpit"] : [])];
-    zeige(erlaubt.includes(h) ? h : h === "prov" ? "deals" : "heute");
+    await zeige(erlaubt.includes(h) ? h : h === "prov" ? "deals" : "heute");
+    neuesZeigen();   // Patchnotes einmal nach jedem Update
   }
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
   start();
