@@ -111,6 +111,13 @@
   const webHref = w => (/^https?:\/\//i.test(w = String(w || "").trim()) ? w : "https://" + w);
   const webText = w => String(w || "").trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/[/?#].*$/, "");
   const webLink = w => `<a class="web" href="${esc(webHref(w))}" target="_blank" rel="noopener">${esc(webText(w))} ↗</a>`;
+  // Google-Maps-Eintrag: genau über die Place-ID (neue Leads), sonst Suche nach Firma + Adresse
+  const mapsHref = l => {
+    const q = encodeURIComponent([l.firma, l.strasse, [l.plz, l.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "));
+    return `https://www.google.com/maps/search/?api=1&query=${q}` + (l.place_id ? `&query_place_id=${encodeURIComponent(l.place_id)}` : "");
+  };
+  const sterne = l => l.bewertung_google ? ` ★ ${String(l.bewertung_google).replace(".", ",")}${l.bewertungen ? ` (${l.bewertungen})` : ""}` : "";
+  const mapsLink = l => `<a class="web" href="${esc(mapsHref(l))}" target="_blank" rel="noopener">Google Maps${esc(sterne(l))} ↗</a>`;
   const WEB = { keine: ["keine Website", "accent"], veraltet: ["Website veraltet", "warn"], unklar: ["Alter unklar", ""], ok: ["Website modern", ""] };
   const istHeute = s => s && isoDate(new Date(s)) === isoDate(new Date());
   function naechsterWerktag(tage = 1, h = 9, m = 0) {
@@ -200,7 +207,7 @@
       ${l.naechster_schritt ? `<div class="meta"><span>${esc(l.naechster_schritt)}</span></div>` : ""}
       ${l.website_befund && ["veraltet", "unklar"].includes(l.website_bewertung) ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}
       ${(() => { const z = (S.zg || []).find(x => x.id === l.zielgruppe); return z && z.demo_url ? `<div class="demo"><span>Demo ${esc(z.name)}:</span> <a href="${esc(z.demo_url)}" target="_blank" rel="noopener">${esc(z.demo_url.replace(/^https?:\/\//, ""))}</a> <button class="btn small" type="button" data-copy="${esc(z.demo_url)}">Link kopieren</button></div>` : ""; })()}
-      ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a>${l.website ? webLink(l.website) : ""}</div>` : `<div class="meta"><span class="due">Keine Telefonnummer</span>${l.website ? webLink(l.website) : ""}</div>`}
+      ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a>${l.website ? webLink(l.website) : ""}${mapsLink(l)}</div>` : `<div class="meta"><span class="due">Keine Telefonnummer</span>${l.website ? webLink(l.website) : ""}</div>`}
       <div class="outcomes">
         <button class="oc n" type="button" data-oc="nicht" data-id="${l.id}">Nicht erreicht</button>
         <button class="oc k" type="button" data-oc="kein" data-id="${l.id}">Kein Interesse</button>
@@ -591,6 +598,7 @@
         <div class="kv"><span class="pill ${st[1]}">${st[0]}</span><span class="meta">${esc(l.lead_nr || "")} · ${esc(l.owner ? name(l.owner) : "Pool")}${l.versuche ? " · " + l.versuche + " Versuche" : ""}</span></div>
         ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a></div>` : ""}
         ${l.website ? `<div class="kv">${webLink(l.website)}${WEB[l.website_bewertung] ? `<span class="pill ${WEB[l.website_bewertung][1]}">${WEB[l.website_bewertung][0]}</span>` : ""}</div>${l.website_befund ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}` : ""}
+        <div class="kv">${mapsLink(l)}</div>
         ${l.email ? `<div class="kv"><span class="v">${esc(l.email)}</span>${l.einwilligung_email ? `<span class="pill ok">Einwilligung ${dDE(l.einwilligung_email)}</span>` : ""}</div>` : ""}
         ${l.email && l.info_mail === "offen" ? `<div class="actions"><button class="btn small primary" type="button" data-infomail="${l.id}">Info-Mail öffnen</button><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>` : ""}
         ${l.interesse_produkte && l.interesse_produkte.length ? `<div class="meta"><span>Interesse: ${esc(l.interesse_produkte.join(", "))}</span></div>` : ""}
@@ -1144,7 +1152,7 @@
   const ALIAS = { firma: ["firma", "name", "title", "company", "company_name", "unternehmen", "firmenname"], branche: ["branche", "category", "type", "kategorie", "subtypes", "categories"],
     telefon: ["telefon", "phone", "phone_1", "phone_number", "tel", "telefonnummer"], email: ["email", "e-mail", "email_1", "mail"], website: ["website", "site", "url", "domain", "webseite", "homepage"],
     strasse: ["strasse", "straße", "street", "adresse"], plz: ["plz", "postal_code", "postcode", "zip", "postleitzahl"], ort: ["ort", "city", "stadt"],
-    ansprechpartner: ["ansprechpartner", "contact_name", "owner_name", "full_name"], bewertung_google: ["rating", "bewertung"], quelle: ["quelle"], notiz: ["notizen", "notiz", "notes"] };
+    ansprechpartner: ["ansprechpartner", "contact_name", "owner_name", "full_name"], bewertung_google: ["rating", "bewertung"], bewertungen: ["reviews", "bewertungen"], place_id: ["place_id"], quelle: ["quelle"], notiz: ["notizen", "notiz", "notes"] };
   const mapRow = r => { const o = {}; for (const [z, ns] of Object.entries(ALIAS)) { const n = ns.find(n => r[n]); if (n) o[z] = r[n]; } if (o.website) o.website = o.website.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/.*$/, ""); return o; };
   async function csvImport(file) {
     try {
@@ -1330,6 +1338,10 @@
   // Bei JEDEM App-Update oben einen Eintrag ergänzen (neueste zuerst, v = Datum JJJJ-MM-TT, bei mehreren am Tag „-2“ usw.).
   // Nur, was für Ziu/Elias im Alltag wichtig ist – kurz, in Stichpunkten. { t, nur: "inhaber" } = nur für Ziu sichtbar.
   const NEUES = [
+    { v: "2026-10-05-2", titel: "Google-Maps-Link", punkte: [
+      "Auf jeder Anrufkarte und im Lead: <b>„Google Maps ↗“</b> öffnet den Eintrag des Betriebs – mit Sternen und Anzahl Bewertungen, wenn bekannt.",
+      "Ideal für den Kundenblick vor dem Anruf: Fotos, Bewertungen, Öffnungszeiten, Speisekarte auf einen Blick.",
+    ] },
     { v: "2026-10-05", titel: "„Für später“-Pool", punkte: [
       "Neuer Knopf <b>„Für später“</b> auf jeder Anrufkarte und im Lead: Betriebe, die sich für KI-Caller, WhatsApp-Bot oder Web-Chatbot interessieren, kommen in einen eigenen Pool – ohne Wiedervorlage.",
       "Finden: Reiter <b>Leads → „Für später“</b>, dort nach Produkt filtern.",
