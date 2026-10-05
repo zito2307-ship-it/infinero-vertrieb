@@ -156,7 +156,7 @@
   const fnv = s => { let h = 0x811c9dc5; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16); };
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
-  const name = k => (S.team.find(t => t.kuerzel === k) || {}).name || k;
+  const name = k => (S.team.find(t => t.kuerzel === k) || {}).name || ({ WEB: "Website", CAL: "Cal.com" })[k] || k;
 
   let toastT;
   function toast(text, undo) {
@@ -203,11 +203,11 @@
     const wv = l.wiedervorlage ? new Date(l.wiedervorlage) : null;
     return `<article class="card${opts.prio ? " prio" : ""}" data-card="${l.id}">
       <div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3>${l.status !== "neu" ? `<span class="pill ${st[1]}">${st[0]}</span>` : web}</div>
-      <div class="meta">${l.branche ? `<span>${esc(l.branche)}</span>` : ""}${l.ort ? `<span>${esc(l.ort)}</span>` : ""}${l.versuche ? `<span>Versuch ${l.versuche + 1}</span>` : ""}${wv ? `<span class="${wv < new Date() ? "due" : ""}">${istHeute(l.wiedervorlage) ? "heute " + hhmm(wv) : dDE(l.wiedervorlage) + " " + hhmm(wv)}</span>` : ""}${l.status !== "neu" ? web : ""}</div>
+      <div class="meta">${(l.quelle || "").startsWith("Website:") ? `<span class="pill accent">Website-Anfrage</span>` : ""}${l.branche ? `<span>${esc(l.branche)}</span>` : ""}${l.ort ? `<span>${esc(l.ort)}</span>` : ""}${l.versuche ? `<span>Versuch ${l.versuche + 1}</span>` : ""}${wv ? `<span class="${wv < new Date() ? "due" : ""}">${istHeute(l.wiedervorlage) ? "heute " + hhmm(wv) : dDE(l.wiedervorlage) + " " + hhmm(wv)}</span>` : ""}${l.status !== "neu" ? web : ""}</div>
       ${l.naechster_schritt ? `<div class="meta"><span>${esc(l.naechster_schritt)}</span></div>` : ""}
       ${l.website_befund && ["veraltet", "unklar"].includes(l.website_bewertung) ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}
       ${(() => { const z = (S.zg || []).find(x => x.id === l.zielgruppe); return z && z.demo_url ? `<div class="demo"><span>Demo ${esc(z.name)}:</span> <a href="${esc(z.demo_url)}" target="_blank" rel="noopener">${esc(z.demo_url.replace(/^https?:\/\//, ""))}</a> <button class="btn small" type="button" data-copy="${esc(z.demo_url)}">Link kopieren</button></div>` : ""; })()}
-      ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a>${l.website ? webLink(l.website) : ""}${mapsLink(l)}</div>` : `<div class="meta"><span class="due">Keine Telefonnummer</span>${l.website ? webLink(l.website) : ""}</div>`}
+      ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a>${l.website ? webLink(l.website) : ""}${mapsLink(l)}</div>` : `<div class="meta"><span class="due">Keine Telefonnummer</span>${l.email ? `<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>` : ""}${l.website ? webLink(l.website) : ""}</div>`}
       <div class="outcomes">
         <button class="oc n" type="button" data-oc="nicht" data-id="${l.id}">Nicht erreicht</button>
         <button class="oc k" type="button" data-oc="kein" data-id="${l.id}">Kein Interesse</button>
@@ -1338,6 +1338,13 @@
   // Bei JEDEM App-Update oben einen Eintrag ergänzen (neueste zuerst, v = Datum JJJJ-MM-TT, bei mehreren am Tag „-2“ usw.).
   // Nur, was für Ziu/Elias im Alltag wichtig ist – kurz, in Stichpunkten. { t, nur: "inhaber" } = nur für Ziu sichtbar.
   const NEUES = [
+    { v: "2026-10-05-3", titel: "Website-Anfragen landen automatisch in der App", punkte: [
+      "Wer auf infinero.de den <b>Sichtbarkeits-Check</b> macht oder das <b>Kontaktformular</b> nutzt, steht sofort als Lead in „Heute“ – ganz oben, markiert mit <b>„Website-Anfrage“</b>.",
+      "Ihr bekommt eine Push-Nachricht: „Neuer Website-Lead … – Rückruf gewünscht“ bzw. „– per E-Mail“.",
+      "Im Lead stehen Score, Kategorien und die 3 wichtigsten Hebel aus dem Check – perfekt als Gesprächseinstieg.",
+      "Der Interessent hat eine Antwort <b>innerhalb eines Werktags</b> versprochen bekommen: bitte am selben bzw. nächsten Werktag melden.",
+      "Wichtig: Die Person hat <b>keine Werbe-Einwilligung</b> gegeben – Antwort auf die Anfrage ja, Newsletter nein.",
+    ] },
     { v: "2026-10-05-2", titel: "Google-Maps-Link", punkte: [
       "Auf jeder Anrufkarte und im Lead: <b>„Google Maps ↗“</b> öffnet den Eintrag des Betriebs – mit Sternen und Anzahl Bewertungen, wenn bekannt.",
       "Ideal für den Kundenblick vor dem Anruf: Fotos, Bewertungen, Öffnungszeiten, Speisekarte auf einen Blick.",
