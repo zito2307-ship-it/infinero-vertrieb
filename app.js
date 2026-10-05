@@ -18,11 +18,15 @@
   ];
   // Anzeigename eines Auftrags: bei individuellem Angebot die eigene Bezeichnung, sonst der Katalogname
   const pname = a => a.bezeichnung || (PRODUKTE.find(p => p.code === a.produkt) || {}).name || a.produkt;
+  // „Für später“: Produkte, die wir noch nicht aktiv verkaufen – Leads landen im Pool je Produkt statt in der Wiedervorlage
+  const SPAETER = [["KICALLER", "KI-Caller"], ["MSGBOT", "WhatsApp-/Messenger-Bot"], ["WEBCHAT", "Web-Chatbot"]];
+  const spaeterName = c => (SPAETER.find(x => x[0] === c) || [c, c])[1];
   const INTERESSE = [["WEBSITE", "Website"], ["WEBCHAT", "Web-Chatbot"], ["MSGBOT", "WhatsApp/Messenger-Bot"], ["KICALLER", "KI-Caller"]];
   const STATUS = {
     neu: ["Neu", "accent"], nicht_erreicht: ["Nicht erreicht", ""], rueckruf: ["Rückruf", "warn"],
     info_angefragt: ["Infos angefragt", "accent"], interesse: ["Interesse", "ok"], termin: ["Termin", "ok"],
     angebot: ["Angebot", "warn"], gewonnen: ["Kunde", "ok"], kein_interesse: ["Kein Interesse", "bad"], kein_kontakt: ["Nicht erreichbar", "bad"],
+    vorgemerkt: ["Für später", "accent"],
   };
   const MAX_VERSUCHE = 5;
   const SIGNATUR = ["INFINERO – KI-Infrastruktur für Unternehmen", "Closewitzer Straße 19 · 07743 Jena"];
@@ -203,7 +207,7 @@
         <button class="oc i" type="button" data-oc="info" data-id="${l.id}">Infos per Mail</button>
         <button class="oc y" type="button" data-oc="ja" data-id="${l.id}">Interesse</button>
       </div>
-      <div class="sub"><button type="button" data-oc="rueckruf" data-id="${l.id}">Rückruf vereinbaren</button><button type="button" data-open="${l.id}">Details</button></div>
+      <div class="sub"><button type="button" data-oc="rueckruf" data-id="${l.id}">Rückruf vereinbaren</button><button type="button" data-spaeter="${l.id}" data-anruf="1">Für später</button><button type="button" data-open="${l.id}">Details</button></div>
     </article>`;
   }
   function terminCard(t) {
@@ -561,11 +565,13 @@
 
   // ---------------------------------------------------------------- Leads
   async function viewLeads() {
-    const f = [["offen", "In Arbeit"], ["mein", "Meine"], ["info", "Infos angefragt"], ["interesse", "Interesse/Termin"], ["kunden", "Kunden"], ["zu", "Abgelehnt"], ["alle", "Alle"]];
+    const f = [["offen", "In Arbeit"], ["mein", "Meine"], ["info", "Infos angefragt"], ["interesse", "Interesse/Termin"], ["kunden", "Kunden"], ["spaeter", "Für später"], ["zu", "Abgelehnt"], ["alle", "Alle"]];
     if (inhaber()) f.push(["pool", "Pool"]);
-    const rows = await store.leads({ q: S.q, filter: S.filter, nurEigene: !inhaber() }); S.data.leads = rows;
+    const rows = await store.leads({ q: S.q, filter: S.filter, nurEigene: !inhaber(), produkt: S.filter === "spaeter" ? S.spaeterProd : null }); S.data.leads = rows;
     return `<div class="search"><input id="q" type="search" placeholder="Firma, Ort, Branche, Telefon …" value="${esc(S.q)}" aria-label="Leads durchsuchen"></div>
       <div class="chips scroll">${f.map(([k, t]) => `<button class="chip" type="button" data-filter="${k}" aria-pressed="${S.filter === k}">${t}</button>`).join("")}</div>
+      ${S.filter === "spaeter" ? `<div class="chips scroll" style="margin-top:8px"><button class="chip" type="button" data-spaeterprod="" aria-pressed="${!S.spaeterProd}">Alle</button>${SPAETER.map(([c, n]) => `<button class="chip" type="button" data-spaeterprod="${c}" aria-pressed="${S.spaeterProd === c}">${esc(n)}</button>`).join("")}</div>
+        <p class="hint">Leads mit Interesse an Produkten, die wir später aktiv anbieten. Sie tauchen nicht in „Heute“ auf, bis du sie wieder in die Arbeit holst.</p>` : ""}
       <div class="list" style="margin-top:8px">${rows.length ? rows.map(leadRow).join("") : `<div class="empty">Keine Leads in dieser Ansicht.</div>`}</div>
       ${rows.length >= 300 ? `<p class="hint">Es werden die 300 zuletzt geänderten angezeigt – Suche nutzen.</p>` : ""}`;
   }
@@ -590,6 +596,8 @@
         ${l.interesse_produkte && l.interesse_produkte.length ? `<div class="meta"><span>Interesse: ${esc(l.interesse_produkte.join(", "))}</span></div>` : ""}
         ${l.demo_website ? `<div class="demobox"><div class="kv"><b>Demo-Website: ${esc(l.demo_website.replace("_", " "))}</b><button class="btn small" type="button" data-demoinfo="${l.id}">${l.demo_infos ? "Infos bearbeiten" : "Infos erfassen"}</button></div>${demoText(l.demo_infos) || `<div class="due">Noch keine Infos für die Demo erfasst.</div>`}</div>` : ""}
         ${l.gesperrt ? `<div class="due">Keine Werbung – nicht mehr kontaktieren.</div>` : ""}
+        ${l.status === "vorgemerkt" ? `<div class="demobox"><div class="kv"><b>Für später: ${esc((l.vorgemerkt || []).map(spaeterName).join(", ") || "–")}</b>${l.vorgemerkt_am ? `<span class="meta">seit ${dDE(l.vorgemerkt_am)}</span>` : ""}</div>
+          <div class="actions"><button class="btn small" type="button" data-spaeter="${l.id}">Ändern</button><button class="btn small" type="button" data-reaktiv="${l.id}">Wieder in die Arbeit holen</button></div></div>` : ""}
       </div>
       ${!l.gesperrt && !["gewonnen"].includes(l.status) ? `<div class="outcomes" style="margin-top:10px">
         <button class="oc n" type="button" data-oc="nicht" data-id="${l.id}">Nicht erreicht</button>
@@ -600,6 +608,7 @@
           return offen ? `<button class="btn primary" type="button" data-auftrag="${offen.id}">Auftrag ansehen</button>` : `<button class="btn primary" type="button" data-zusage="${l.id}">${l._deals.length ? "Neue Zusage (Folgeauftrag)" : "Zusage"}</button>`; })()}
         <button class="btn" type="button" data-deal="${l.id}">Unterschrieben – Abschluss melden</button>
         ${l.status === "termin" || l.status === "interesse" || l.status === "info_angefragt" ? `<button class="btn" type="button" data-setstatus="angebot" data-id="${l.id}">Angebot verschickt</button>` : ""}
+        ${!l.gesperrt && l.status !== "vorgemerkt" && l.status !== "gewonnen" ? `<button class="btn" type="button" data-spaeter="${l.id}">Für später vormerken</button>` : ""}
         ${!l.gesperrt ? `<button class="btn danger" type="button" data-sperren="${l.id}">Keine Werbung</button>` : ""}</div>
       ${l._termine.length ? `<h2 class="sec">Termine</h2><div class="list">${l._termine.map(t => `<div class="block"><div class="kv"><span>${esc(tagDE(new Date(t.beginn)))}, ${hhmm(new Date(t.beginn))}</span><span class="pill ${t.status === "geplant" ? "ok" : ""}">${esc(t.status)}</span></div><div class="meta"><span>mit ${esc(t.mit.map(name).join(" & "))}</span><span>${esc(ART[t.art])}</span></div>${t.status === "geplant" ? `<div class="actions">${kalenderButtons({ ...t, lead: l })}</div>` : ""}</div>`).join("")}</div>` : ""}
       ${(l._auftraege || []).length ? `<h2 class="sec">Aufträge</h2><div class="list">${l._auftraege.map(a => auftragCard({ ...a, lead: l })).join("")}</div>` : ""}
@@ -630,6 +639,42 @@
         toast("Gespeichert"); detail(l.id);
       } catch (err) { fehler(err); }
     });
+  }
+
+  // „Für später vormerken“: Lead mit Interesse an KI-Caller/WhatsApp-Bot … in den Pool – raus aus den Tageslisten
+  function spaeterSheet(id, ausAnruf = false) {
+    const l = findLead(id) || {}; const sel = new Set(l.vorgemerkt || []);
+    const root = sheet("Für später · " + (l.firma || ""), `<form id="f" class="form">
+      <p class="hint full" style="margin:0">Der Betrieb interessiert sich für etwas, das wir noch nicht aktiv verkaufen. Er landet im Pool „Für später“ – keine Wiedervorlage, kein Anruf, bis wir das Produkt anbieten.</p>
+      <div class="full"><div class="lbl">Interessant für</div><div class="chips">${SPAETER.map(([c, n]) => `<button class="chip" type="button" data-sp="${c}" aria-pressed="${sel.has(c)}">${esc(n)}</button>`).join("")}</div></div>
+      <div class="field full"><label for="sp_n">Notiz (optional)</label><input id="sp_n" placeholder="z. B. Telefon ständig besetzt, will Anrufe nicht verpassen"></div>
+      <div class="full"><button class="btn primary block" type="submit">Vormerken</button></div></form>`);
+    root.addEventListener("click", e => { const b = e.target.closest("[data-sp]"); if (b) b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true")); });
+    root.querySelector("#f").addEventListener("submit", async e => {
+      e.preventDefault();
+      const codes = [...root.querySelectorAll("[data-sp][aria-pressed=true]")].map(b => b.dataset.sp);
+      if (!codes.length) return toast("Bitte mindestens ein Produkt wählen");
+      const notiz = root.querySelector("#sp_n").value.trim();
+      const text = "Für später vorgemerkt: " + codes.map(spaeterName).join(", ") + (notiz ? " – " + notiz : "");
+      const patch = { status: "vorgemerkt", vorgemerkt: codes, vorgemerkt_am: new Date().toISOString(), wiedervorlage: null,
+        naechster_schritt: "Später: " + codes.map(spaeterName).join(", "),
+        interesse_produkte: [...new Set([...(l.interesse_produkte || []), ...codes.filter(c => INTERESSE.some(i => i[0] === c))])] };
+      if (l.status !== "vorgemerkt") patch.vorgemerkt_status = l.status || "neu";
+      try {
+        if (ausAnruf) { aus(id); await ergebnis(id, "vorgemerkt", patch, text); }   // zählt als erreichter Anruf
+        else { await store.leadUpdate(id, patch); await store.aktivitaet({ lead_id: id, typ: "status", text }); }
+        schliessen(false); toast("Vorgemerkt – zu finden unter Leads → „Für später“"); zeige();
+      } catch (err) { fehler(err); }
+    });
+  }
+  async function reaktivieren(id) {
+    const l = findLead(id) || {};
+    const zurueck = l.vorgemerkt_status && !["vorgemerkt", "neu"].includes(l.vorgemerkt_status) ? l.vorgemerkt_status : "interesse";
+    try {
+      await store.leadUpdate(id, { status: zurueck, wiedervorlage: naechsterWerktag(0, 10).toISOString(), naechster_schritt: "Wieder aufgenommen: " + (l.vorgemerkt || []).map(spaeterName).join(", ") });
+      await store.aktivitaet({ lead_id: id, typ: "status", text: "Aus „Für später“ wieder in die Arbeit geholt" });
+      toast("Wieder in der Arbeit – steht heute in den Wiedervorlagen"); detail(id);
+    } catch (err) { fehler(err); }
   }
 
   // „Leads laden“: Zielgruppe und Anzahl frei wählen – z. B. ein Nachmittagsblock Beauty statt der Wochenfokus-Gruppe
@@ -1262,6 +1307,9 @@
     if (ds.demo) { try { await store.leadUpdate(id, { demo_website: ds.demo }); toast("Demo-Website: " + (ds.demo === "fertig" ? "fertig" : "in Arbeit")); zeige(); } catch (err) { fehler(err); } return; }
     if (ds.copy) { try { await navigator.clipboard.writeText(ds.copy); toast("Kopiert"); } catch (err) { toast(ds.copy); } return; }
     if (t.id === "more") return ladenSheet();
+    if (ds.spaeter) return spaeterSheet(+ds.spaeter, ds.anruf === "1");
+    if (ds.reaktiv) return reaktivieren(+ds.reaktiv);
+    if (t.dataset && "spaeterprod" in t.dataset) { S.spaeterProd = t.dataset.spaeterprod || null; return zeige(); }
     if (t.dataset && "neufilter" in t.dataset) { S.neuFilter = t.dataset.neufilter || null; return zeige(); }
     if (t.id === "fab") return neuerLead();
     if (t.id === "me") return profilSheet();
@@ -1282,6 +1330,12 @@
   // Bei JEDEM App-Update oben einen Eintrag ergänzen (neueste zuerst, v = Datum JJJJ-MM-TT, bei mehreren am Tag „-2“ usw.).
   // Nur, was für Ziu/Elias im Alltag wichtig ist – kurz, in Stichpunkten. { t, nur: "inhaber" } = nur für Ziu sichtbar.
   const NEUES = [
+    { v: "2026-10-05", titel: "„Für später“-Pool", punkte: [
+      "Neuer Knopf <b>„Für später“</b> auf jeder Anrufkarte und im Lead: Betriebe, die sich für KI-Caller, WhatsApp-Bot oder Web-Chatbot interessieren, kommen in einen eigenen Pool – ohne Wiedervorlage.",
+      "Finden: Reiter <b>Leads → „Für später“</b>, dort nach Produkt filtern.",
+      "Wenn wir das Produkt anbieten: Lead öffnen → „Wieder in die Arbeit holen“.",
+      "Vom Anruf aus vorgemerkt zählt als erreichter Anruf.",
+    ] },
     { v: "2026-10-04", titel: "Neue Preise: Website „Sichtbar“", punkte: [
       "Website jetzt <b>1.490 € einmalig + 99 €/Monat</b>: Website-Flatrate <b>plus Sichtbarkeit</b> bei Google, Google Maps und in der KI-Suche (ChatGPT & Co.), mit monatlichem Bericht.",
       "Das alte Angebot 990 € / 59 € gibt es nicht mehr.",

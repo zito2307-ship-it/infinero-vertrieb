@@ -49,7 +49,7 @@
       ]);
       return { termine, faellig, neue, anrufe: anrufe.count || 0 };
     }
-    async leads({ q = "", filter = "offen", nurEigene = false } = {}) {
+    async leads({ q = "", filter = "offen", nurEigene = false, produkt = null } = {}) {
       let x = this.sb.from("leads").select("*").order("geaendert_am", { ascending: false }).limit(300);
       if (nurEigene) x = x.eq("owner", this.k);
       if (!(this.profil.rolle === "inhaber" && filter === "pool")) x = x.not("owner", "is", null);
@@ -60,6 +60,7 @@
       else if (filter === "zu") x = x.or("gesperrt.eq.true,status.in.(kein_interesse,kein_kontakt)");
       else if (filter === "pool") x = x.is("owner", null);
       else if (filter === "mein") x = x.eq("owner", this.k);
+      else if (filter === "spaeter") { x = x.eq("status", "vorgemerkt"); if (produkt) x = x.contains("vorgemerkt", [produkt]); }
       if (q) { const s = q.replace(/[%,()]/g, " ").trim(); x = x.or(`firma.ilike.%${s}%,ort.ilike.%${s}%,branche.ilike.%${s}%,telefon.ilike.%${s}%,website.ilike.%${s}%`); }
       return this._check(x);
     }
@@ -217,7 +218,7 @@
       const anrufe = this.d.akt.filter(a => a.von === k && a.typ === "anruf" && new Date(a.zeit) >= s).length;
       return { termine, faellig, neue, anrufe };
     }
-    async leads({ q = "", filter = "offen" } = {}) {
+    async leads({ q = "", filter = "offen", produkt = null } = {}) {
       const k = this.k, inh = (this.d.team.find(t => t.kuerzel === k) || {}).rolle === "inhaber";
       let r = this.d.leads.filter(l => (inh || l.owner === k));
       if (filter !== "pool") r = r.filter(l => l.owner);
@@ -225,6 +226,7 @@
         offen: l => OFFEN.includes(l.status) && !l.gesperrt, info: l => l.status === "info_angefragt",
         interesse: l => ["interesse", "termin", "angebot"].includes(l.status), kunden: l => l.status === "gewonnen",
         zu: l => l.gesperrt || ["kein_interesse", "kein_kontakt"].includes(l.status), pool: l => !l.owner, mein: l => l.owner === k, alle: () => true,
+        spaeter: l => l.status === "vorgemerkt" && (!produkt || (l.vorgemerkt || []).includes(produkt)),
       }[filter] || (() => true);
       r = r.filter(f);
       if (q) { const s = q.toLowerCase(); r = r.filter(l => [l.firma, l.ort, l.branche, l.telefon, l.website].join(" ").toLowerCase().includes(s)); }
