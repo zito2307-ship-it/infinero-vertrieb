@@ -30,6 +30,9 @@
   };
   const MAX_VERSUCHE = 5;
   const SIGNATUR = ["INFINERO – KI-Infrastruktur für Unternehmen", "Closewitzer Straße 19 · 07743 Jena"];
+  // Kontakt nach außen (Mails, Signatur, Terminlink) ist immer der Inhaber – Vertriebler erscheinen nicht öffentlich
+  const aussen = () => (store.mode === "live" && S.team.find(t => t.rolle === "inhaber")) || { kuerzel: "INH", name: "Ziu Tonndorf", telefon: null, termin_link: null };
+  const signatur = ab => ["Viele Grüße", ab.name, "Inhaber", "", ...SIGNATUR, [ab.telefon ? "Tel. " + ab.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n");
   const MAILTEXT = {
     WEBSITE: ["moderne Website", "fürs Handy gemacht und so aufgebaut, dass man Sie findet – bei Google, auf Google Maps und in KI-Assistenten wie ChatGPT, mit Online-Terminanfrage", 1490, 99],
     WEBCHAT: ["Web-Chatbot", "beantwortet Fragen auf Ihrer Website rund um die Uhr", 690, 79],
@@ -316,8 +319,9 @@
     const paket = LEITER_MAIL.find(([k]) => k.length === prods.length && k.every(c => prods.includes(c)));
     const liste = prods.map(c => `– ${MAILTEXT[c][0]}: ${MAILTEXT[c][1]}` + (paket ? "" : ` (einmalig ${euro(MAILTEXT[c][2])}, dann ${euro(MAILTEXT[c][3])} im Monat)`)).join("\n")
       + (paket ? `\nZusammen: einmalig ${euro(paket[1])}, dann ${euro(paket[2])} im Monat` : "");
-    const kollege = l.owner && l.owner !== ich.kuerzel ? ` mit meinem Kollegen ${name(l.owner)}` : "";
-    const link = ich.termin_link || (S.cfg && S.cfg.termin_link);
+    const ab = aussen();
+    const kollege = (l.owner || ich.kuerzel) !== ab.kuerzel ? " mit meinem Kollegen" : "";
+    const link = ab.termin_link || (S.cfg && S.cfg.termin_link);
     const teile = [
       anrede(l),
       `danke für das nette Telefonat${kollege} – wie versprochen hier kurz das Wichtigste.`,
@@ -328,7 +332,7 @@
       "Mehr über uns finden Sie auf infinero.de.",
       link ? `Wenn Sie mögen, zeige ich Ihnen das in 15 Minuten am Telefon. Hier können Sie sich direkt einen Termin aussuchen:\n${link}` : "Wenn Sie mögen, zeige ich Ihnen das in 15 Minuten am Telefon – antworten Sie einfach kurz mit einem Wunschtermin.",
       "Und falls es gerade nicht passt: Eine kurze Nachricht genügt, dann melden wir uns nicht wieder.",
-      ["Viele Grüße", ich.name, "", ...SIGNATUR, [ich.telefon ? "Tel. " + ich.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n"),
+      signatur(aussen()),
     ];
     return { an: l.email || "", betreff: v.betreff, text: teile.filter(Boolean).join("\n\n") };
   }
@@ -385,7 +389,6 @@
   const auftragLink = a => new URL("auftrag.html?t=" + encodeURIComponent(a.token || ""), location.href).href;
   function auftragMail(a) {
     const l = a.lead || {};
-    const ich = (store.mode === "live" && S.team.find(t => t.kuerzel === S.profil.kuerzel)) || S.view;
     const p = pname(a);
     const text = [
       anrede(l),
@@ -393,7 +396,7 @@
       `Unter diesem Link finden Sie Ihr Angebot „${p}“ mit allen Konditionen. Dort können Sie den Auftrag mit wenigen Klicks erteilen und Ihre Zahlungsart hinterlegen (SEPA-Lastschrift oder Karte). ${+a.monatlich > 0 ? "Fällig wird jetzt nur die Einrichtung – der Monatsbeitrag beginnt erst, wenn Ihre Website live ist" : "Es fällt einmalig der vereinbarte Betrag an, ohne laufende Kosten"}:\n${auftragLink(a)}`,
       "Sobald der Auftrag da ist, melden wir uns für ein kurzes Onboarding-Gespräch, in dem wir alles für Ihre Website besprechen.",
       "Bei Fragen erreichen Sie mich jederzeit.",
-      ["Viele Grüße", ich.name, "", ...SIGNATUR, [ich.telefon ? "Tel. " + ich.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n"),
+      signatur(aussen()),
     ].join("\n\n");
     return { an: l.email || "", betreff: `Ihr Auftrag bei INFINERO – ${l.firma || p}`, text };
   }
@@ -1338,6 +1341,12 @@
   // Bei JEDEM App-Update oben einen Eintrag ergänzen (neueste zuerst, v = Datum JJJJ-MM-TT, bei mehreren am Tag „-2“ usw.).
   // Nur, was für Ziu/Elias im Alltag wichtig ist – kurz, in Stichpunkten. { t, nur: "inhaber" } = nur für Ziu sichtbar.
   const NEUES = [
+    { v: "2026-10-05-4", titel: "Nach außen spricht INFINERO mit einer Stimme", punkte: [
+      "Info-Mails, Auftrags-Mails und die Auftragsseite für Kunden sind jetzt <b>immer von Ziu (Inhaber)</b> unterschrieben – mit Zius Telefonnummer und Terminlink.",
+      "Hat Elias angerufen, steht in der Mail „mein Kollege“ – ohne Namen.",
+      "Website-Anfragen von infinero.de landen bei Ziu.",
+      { t: "Intern bleibt alles wie gehabt: Elias sieht seine Leads, Anrufe und Statistik. Umstellen: vertrieb_config.inbound_owner bzw. Absender in infomail/mailsenden/auftrag.", nur: "inhaber" },
+    ] },
     { v: "2026-10-05-3", titel: "Website-Anfragen landen automatisch in der App", punkte: [
       "Wer auf infinero.de den <b>Sichtbarkeits-Check</b> macht oder das <b>Kontaktformular</b> nutzt, steht sofort als Lead in „Heute“ – ganz oben, markiert mit <b>„Website-Anfrage“</b>.",
       "Ihr bekommt eine Push-Nachricht: „Neuer Website-Lead … – Rückruf gewünscht“ bzw. „– per E-Mail“.",
