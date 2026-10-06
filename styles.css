@@ -187,3 +187,12 @@ table.stats td:first-child{white-space:nowrap}
 .demoinfos{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-left:3px solid var(--accent);padding-left:10px}
 .demoinfos[hidden]{display:none}
 .neu-notes ul{margin:6px 0 0;padding-left:18px}.neu-notes li{margin:0 0 6px;line-height:1.45}
+
+/* Website-Entwürfe (Auswahl im Lead) */
+.entwuerfe{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:4px 0}
+.entwurf{display:flex;flex-direction:column;gap:3px;text-decoration:none;color:var(--ink);font-size:12.5px;border:2px solid transparent;border-radius:10px;padding:3px}
+.entwurf.gewaehlt{border-color:var(--accent)}
+.entwurf img{width:100%;aspect-ratio:9/16;object-fit:cover;object-position:top;border-radius:8px;border:1px solid var(--line);background:var(--surface)}
+.entwurf b{font-size:13px}.entwurf span{color:var(--muted)}
+.entwuerfe-box .wahl{display:flex;gap:6px}.entwuerfe-box .wahl .btn[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.entwuerfe-box .feedback{width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;background:var(--surface);color:var(--ink);resize:vertical}

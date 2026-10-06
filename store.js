@@ -72,8 +72,10 @@
         this._check(this.sb.from("abschluesse").select("*").eq("lead_id", id).order("datum")),
         this._check(this.sb.from("auftraege").select("*").eq("lead_id", id).order("erstellt_am")),
       ]);
-      return { ...l, _akt: akt, _termine: ter, _deals: deals, _auftraege: auf };
+      const entw = await this._check(this.sb.from("website_entwuerfe").select("*").eq("lead_id", id).maybeSingle()).catch(() => null);
+      return { ...l, _akt: akt, _termine: ter, _deals: deals, _auftraege: auf, _entwuerfe: entw || null };
     }
+    async entwurfWaehlen(id, patch) { return this._check(this.sb.from("website_entwuerfe").update(patch).eq("id", id).select().single()); }
     async leadAnlegen(d) { return this._check(this.sb.from("leads").insert(d).select().single()); }
     async leadUpdate(id, patch) { return this._check(this.sb.from("leads").update(patch).eq("id", id).select().single()); }
     async leadLoeschen(id) { await this._check(this.sb.from("leads").delete().eq("id", id)); }

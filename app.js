@@ -475,6 +475,24 @@
     return [di.leistungen && `Leistungen: ${di.leistungen}`, di.besonders && `Besonders: ${di.besonders}`, (di.stil || di.farben) && `Stil/Farben: ${[di.stil, di.farben].filter(Boolean).join(", ")}`,
       di.vorlage && `Vorlage: ${di.vorlage}`, b && `Bilder: ${b}`, di.bis && `Fertig bis ${dDE(di.bis)}`].filter(Boolean).map(x => `<div>${esc(x)}</div>`).join("");
   }
+  // Website-Entwürfe (aus dem Website-System): 3 Varianten ansehen, eine wählen, Feedback geben
+  const ENTWURF_STATUS = { entwuerfe: ["Entwürfe warten auf Auswahl", "warn"], gewaehlt: ["Entwurf gewählt – wird ausgebaut", "accent"], in_ausbau: ["Website wird ausgebaut", "accent"], vorschau: ["Vorschau fertig – Abnahme", "ok"], live: ["Live", "ok"] };
+  function entwuerfeBlock(e) {
+    const st = ENTWURF_STATUS[e.status] || [e.status, ""];
+    const offen = e.status === "entwuerfe" && inhaber();
+    return `<div class="demobox entwuerfe-box" data-entwuerfe="${e.id}">
+      <div class="kv"><b>Website-Entwürfe</b><span class="pill ${st[1]}">${esc(st[0])}</span></div>
+      <div class="entwuerfe">${(e.varianten || []).map(v => `<a class="entwurf${e.gewaehlt === v.id ? " gewaehlt" : ""}" href="${esc(v.url)}" target="_blank" rel="noopener">
+        <img src="${esc(v.handy || v.desktop || "")}" alt="" loading="lazy"><b>Entwurf ${esc(v.id.toUpperCase())}</b><span>${esc(v.name || "")}</span></a>`).join("")}</div>
+      ${offen ? `<div class="wahl">${(e.varianten || []).map(v => `<button class="btn small" type="button" data-wahl="${esc(v.id)}" aria-pressed="false">${esc(v.id.toUpperCase())}</button>`).join("")}</div>
+        <textarea class="feedback" rows="3" placeholder="Dein Senf dazu: Was soll anders werden? (Farben, Bilder, Texte, Reihenfolge …)"></textarea>
+        <button class="btn primary small" type="button" data-entwurfok="${e.id}">Auswahl speichern</button>`
+      : `${e.gewaehlt ? `<div>Gewählt: <b>Entwurf ${esc(e.gewaehlt.toUpperCase())}</b>${e.gewaehlt_am ? ` am ${dDE(e.gewaehlt_am)}` : ""}</div>` : ""}${e.feedback ? `<div>Feedback: ${esc(e.feedback)}</div>` : ""}
+        ${e.vorschau_url ? `<div class="actions"><a class="btn small primary" href="${esc(e.vorschau_url)}" target="_blank" rel="noopener">Vorschau öffnen</a><button class="btn small" type="button" data-copy="${esc(e.vorschau_url)}">Link kopieren</button></div>` : ""}
+        ${e.live_url ? `<div class="actions"><a class="btn small" href="${esc(e.live_url)}" target="_blank" rel="noopener">Live-Seite</a></div>` : ""}
+        ${inhaber() && e.status !== "live" ? `<div class="actions"><button class="btn small" type="button" data-entwurfneu="${e.id}">Auswahl ändern</button></div>` : ""}`}
+    </div>`;
+  }
   async function demoSheet(id) {
     let l; try { l = await store.lead(id); } catch (e) { return fehler(e); }
     const root = sheet("Demo-Infos · " + l.firma, `<form id="f" class="form">${demoFelder(l.demo_infos || {}, l)}<div class="full"><button class="btn primary block" type="submit">Speichern</button></div></form>`, id);
@@ -606,6 +624,7 @@
         ${l.email && l.info_mail === "offen" ? `<div class="actions"><button class="btn small primary" type="button" data-infomail="${l.id}">Info-Mail öffnen</button><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>` : ""}
         ${l.interesse_produkte && l.interesse_produkte.length ? `<div class="meta"><span>Interesse: ${esc(l.interesse_produkte.join(", "))}</span></div>` : ""}
         ${l.demo_website ? `<div class="demobox"><div class="kv"><b>Demo-Website: ${esc(l.demo_website.replace("_", " "))}</b><button class="btn small" type="button" data-demoinfo="${l.id}">${l.demo_infos ? "Infos bearbeiten" : "Infos erfassen"}</button></div>${demoText(l.demo_infos) || `<div class="due">Noch keine Infos für die Demo erfasst.</div>`}</div>` : ""}
+        ${l._entwuerfe ? entwuerfeBlock(l._entwuerfe) : ""}
         ${l.gesperrt ? `<div class="due">Keine Werbung – nicht mehr kontaktieren.</div>` : ""}
         ${l.status === "vorgemerkt" ? `<div class="demobox"><div class="kv"><b>Für später: ${esc((l.vorgemerkt || []).map(spaeterName).join(", ") || "–")}</b>${l.vorgemerkt_am ? `<span class="meta">seit ${dDE(l.vorgemerkt_am)}</span>` : ""}</div>
           <div class="actions"><button class="btn small" type="button" data-spaeter="${l.id}">Ändern</button><button class="btn small" type="button" data-reaktiv="${l.id}">Wieder in die Arbeit holen</button></div></div>` : ""}
@@ -1305,6 +1324,14 @@
     if (ds.deal) return dealSheet(+ds.deal);
     if (ds.zusage) return zusageSheet(+ds.zusage);
     if (ds.demoinfo) return demoSheet(+ds.demoinfo);
+    if (ds.wahl) { t.closest(".wahl").querySelectorAll("[data-wahl]").forEach(b => b.setAttribute("aria-pressed", String(b === t))); return; }
+    if (ds.entwurfok) {
+      const box = t.closest(".entwuerfe-box"), g = box.querySelector("[data-wahl][aria-pressed=true]"), fb = box.querySelector(".feedback").value.trim();
+      if (!g) return toast("Bitte erst einen Entwurf (A/B/C) antippen.");
+      try { await store.entwurfWaehlen(+ds.entwurfok, { gewaehlt: g.dataset.wahl, feedback: fb || null }); toast("Auswahl gespeichert – Ziu/Claude baut Entwurf " + g.dataset.wahl.toUpperCase() + " aus"); detail(S.data.detail.id); } catch (err) { fehler(err); }
+      return;
+    }
+    if (ds.entwurfneu) { try { await store.entwurfWaehlen(+ds.entwurfneu, { status: "entwuerfe" }); detail(S.data.detail.id); } catch (err) { fehler(err); } return; }
     if (ds.auftrag) return auftragSheet(+ds.auftrag);
     if (ds.setstatus) { try { await store.leadUpdate(id, { status: ds.setstatus, wiedervorlage: naechsterWerktag(3, 10).toISOString(), naechster_schritt: "Nachfassen Angebot" }); await store.aktivitaet({ lead_id: id, typ: "status", ergebnis: ds.setstatus }); toast("Status: Angebot"); detail(id); } catch (err) { fehler(err); } return; }
     if (ds.sperren) { try { await store.leadUpdate(+ds.sperren, { gesperrt: true, wiedervorlage: null }); await store.aktivitaet({ lead_id: +ds.sperren, typ: "status", text: "Keine Werbung gewünscht – gesperrt" }); toast("Gesperrt"); detail(+ds.sperren); } catch (err) { fehler(err); } return; }
@@ -1428,6 +1455,7 @@
     if (store.mode === "demo") $("#banner").innerHTML = `<div class="banner">Demo-Modus: Beispieldaten nur auf diesem Gerät. Ansicht wechseln über den Namen oben rechts.</div>`;
     const h = location.hash.slice(1), erlaubt = ["heute", "leads", "termine", "auftraege", "deals", "statistik", ...(inhaber() ? ["cockpit"] : [])];
     await zeige(erlaubt.includes(h) ? h : h === "prov" ? "deals" : "heute");
+    if (/^lead\/\d+$/.test(h)) { history.replaceState(null, "", location.pathname); detail(+h.split("/")[1]); }   // Push „Entwürfe fertig“ öffnet den Lead
     neuesZeigen();   // Patchnotes einmal nach jedem Update
   }
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
