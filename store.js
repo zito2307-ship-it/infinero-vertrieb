@@ -72,8 +72,10 @@
         this._check(this.sb.from("abschluesse").select("*").eq("lead_id", id).order("datum")),
         this._check(this.sb.from("auftraege").select("*").eq("lead_id", id).order("erstellt_am")),
       ]);
-      return { ...l, _akt: akt, _termine: ter, _deals: deals, _auftraege: auf };
+      const entw = await this._check(this.sb.from("website_entwuerfe").select("*").eq("lead_id", id).maybeSingle()).catch(() => null);
+      return { ...l, _akt: akt, _termine: ter, _deals: deals, _auftraege: auf, _entwuerfe: entw || null };
     }
+    async entwurfWaehlen(id, patch) { return this._check(this.sb.from("website_entwuerfe").update(patch).eq("id", id).select().single()); }
     async leadAnlegen(d) { return this._check(this.sb.from("leads").insert(d).select().single()); }
     async leadUpdate(id, patch) { return this._check(this.sb.from("leads").update(patch).eq("id", id).select().single()); }
     async leadLoeschen(id) { await this._check(this.sb.from("leads").delete().eq("id", id)); }
@@ -107,6 +109,8 @@
     async importieren(rows, quelle) { return this._check(this.sb.rpc("leads_importieren", { daten: rows, kampagne: null, quelle_standard: quelle })); }
     async zielgruppen() { return this._check(this.sb.from("zielgruppen").select("*").order("reihenfolge")); }
     async vertriebConfig() { return (await this._check(this.sb.from("vertrieb_config").select("*").eq("id", 1)))[0] || { fokus: "handwerk" }; }
+    async partner() { return this._check(this.sb.from("partner").select("code,tippgeber_id,name,aktiv").order("tippgeber_id")); }
+    async partnerLinks() { return this._check(this.sb.rpc("partner_links")); }
     async setFokus(fokus, auto) { await this._check(this.sb.from("vertrieb_config").update({ fokus, auto_wechsel: auto, fokus_seit: new Date().toISOString().slice(0, 10) }).eq("id", 1)); }
     async setDemoUrl(id, url) { await this._check(this.sb.from("zielgruppen").update({ demo_url: url || null }).eq("id", id)); }
     async setTerminLink(url) { await this._check(this.sb.from("vertrieb_config").update({ termin_link: url || null }).eq("id", 1)); }
@@ -285,6 +289,8 @@
     async alleLeads() { return this.d.leads; }
     async zielgruppen() { return this.d.zielgruppen; }
     async vertriebConfig() { return this.d.config; }
+    async partner() { return []; }
+    async partnerLinks() { return []; }
     async setFokus(fokus, auto) { Object.assign(this.d.config, { fokus, auto_wechsel: auto }); this._save(); }
     async setDemoUrl(id, url) { this.d.zielgruppen.find(z => z.id === id).demo_url = url || null; this._save(); }
     async setTerminLink(url) { this.d.config.termin_link = url || null; this._save(); }

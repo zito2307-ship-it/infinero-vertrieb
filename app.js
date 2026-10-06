@@ -31,6 +31,7 @@
   const MAX_VERSUCHE = 5;
   const SIGNATUR = ["INFINERO – KI-Infrastruktur für Unternehmen", "Closewitzer Straße 19 · 07743 Jena"];
   // Kontakt nach außen (Mails, Signatur, Terminlink) ist immer der Inhaber – Vertriebler erscheinen nicht öffentlich
+  const tippName = id => ((S.partner || []).find(p => p.tippgeber_id === id) || {}).name || id;
   const aussen = () => (store.mode === "live" && S.team.find(t => t.rolle === "inhaber")) || { kuerzel: "INH", name: "Ziu Tonndorf", telefon: null, termin_link: null };
   const signatur = ab => ["Viele Grüße", ab.name, "Inhaber", "", ...SIGNATUR, [ab.telefon ? "Tel. " + ab.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n");
   const MAILTEXT = {
@@ -206,7 +207,7 @@
     const wv = l.wiedervorlage ? new Date(l.wiedervorlage) : null;
     return `<article class="card${opts.prio ? " prio" : ""}" data-card="${l.id}">
       <div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3>${l.status !== "neu" ? `<span class="pill ${st[1]}">${st[0]}</span>` : web}</div>
-      <div class="meta">${(l.quelle || "").startsWith("Website:") ? `<span class="pill accent">Website-Anfrage</span>` : ""}${l.branche ? `<span>${esc(l.branche)}</span>` : ""}${l.ort ? `<span>${esc(l.ort)}</span>` : ""}${l.versuche ? `<span>Versuch ${l.versuche + 1}</span>` : ""}${wv ? `<span class="${wv < new Date() ? "due" : ""}">${istHeute(l.wiedervorlage) ? "heute " + hhmm(wv) : dDE(l.wiedervorlage) + " " + hhmm(wv)}</span>` : ""}${l.status !== "neu" ? web : ""}</div>
+      <div class="meta">${l.tippgeber ? `<span class="pill ok">Empfehlung: ${esc(tippName(l.tippgeber))}</span>` : (l.quelle || "").startsWith("Website:") ? `<span class="pill accent">Website-Anfrage</span>` : ""}${l.branche ? `<span>${esc(l.branche)}</span>` : ""}${l.ort ? `<span>${esc(l.ort)}</span>` : ""}${l.versuche ? `<span>Versuch ${l.versuche + 1}</span>` : ""}${wv ? `<span class="${wv < new Date() ? "due" : ""}">${istHeute(l.wiedervorlage) ? "heute " + hhmm(wv) : dDE(l.wiedervorlage) + " " + hhmm(wv)}</span>` : ""}${l.status !== "neu" ? web : ""}</div>
       ${l.naechster_schritt ? `<div class="meta"><span>${esc(l.naechster_schritt)}</span></div>` : ""}
       ${l.website_befund && ["veraltet", "unklar"].includes(l.website_bewertung) ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}
       ${(() => { const z = (S.zg || []).find(x => x.id === l.zielgruppe); return z && z.demo_url ? `<div class="demo"><span>Demo ${esc(z.name)}:</span> <a href="${esc(z.demo_url)}" target="_blank" rel="noopener">${esc(z.demo_url.replace(/^https?:\/\//, ""))}</a> <button class="btn small" type="button" data-copy="${esc(z.demo_url)}">Link kopieren</button></div>` : ""; })()}
@@ -475,6 +476,24 @@
     return [di.leistungen && `Leistungen: ${di.leistungen}`, di.besonders && `Besonders: ${di.besonders}`, (di.stil || di.farben) && `Stil/Farben: ${[di.stil, di.farben].filter(Boolean).join(", ")}`,
       di.vorlage && `Vorlage: ${di.vorlage}`, b && `Bilder: ${b}`, di.bis && `Fertig bis ${dDE(di.bis)}`].filter(Boolean).map(x => `<div>${esc(x)}</div>`).join("");
   }
+  // Website-Entwürfe (aus dem Website-System): 3 Varianten ansehen, eine wählen, Feedback geben
+  const ENTWURF_STATUS = { entwuerfe: ["Entwürfe warten auf Auswahl", "warn"], gewaehlt: ["Entwurf gewählt – wird ausgebaut", "accent"], in_ausbau: ["Website wird ausgebaut", "accent"], vorschau: ["Vorschau fertig – Abnahme", "ok"], live: ["Live", "ok"] };
+  function entwuerfeBlock(e) {
+    const st = ENTWURF_STATUS[e.status] || [e.status, ""];
+    const offen = e.status === "entwuerfe" && inhaber();
+    return `<div class="demobox entwuerfe-box" data-entwuerfe="${e.id}">
+      <div class="kv"><b>Website-Entwürfe</b><span class="pill ${st[1]}">${esc(st[0])}</span></div>
+      <div class="entwuerfe">${(e.varianten || []).map(v => `<a class="entwurf${e.gewaehlt === v.id ? " gewaehlt" : ""}" href="${esc(v.url)}" target="_blank" rel="noopener">
+        <img src="${esc(v.handy || v.desktop || "")}" alt="" loading="lazy"><b>Entwurf ${esc(v.id.toUpperCase())}</b><span>${esc(v.name || "")}</span></a>`).join("")}</div>
+      ${offen ? `<div class="wahl">${(e.varianten || []).map(v => `<button class="btn small" type="button" data-wahl="${esc(v.id)}" aria-pressed="false">${esc(v.id.toUpperCase())}</button>`).join("")}</div>
+        <textarea class="feedback" rows="3" placeholder="Dein Senf dazu: Was soll anders werden? (Farben, Bilder, Texte, Reihenfolge …)"></textarea>
+        <button class="btn primary small" type="button" data-entwurfok="${e.id}">Auswahl speichern</button>`
+      : `${e.gewaehlt ? `<div>Gewählt: <b>Entwurf ${esc(e.gewaehlt.toUpperCase())}</b>${e.gewaehlt_am ? ` am ${dDE(e.gewaehlt_am)}` : ""}</div>` : ""}${e.feedback ? `<div>Feedback: ${esc(e.feedback)}</div>` : ""}
+        ${e.vorschau_url ? `<div class="actions"><a class="btn small primary" href="${esc(e.vorschau_url)}" target="_blank" rel="noopener">Vorschau öffnen</a><button class="btn small" type="button" data-copy="${esc(e.vorschau_url)}">Link kopieren</button></div>` : ""}
+        ${e.live_url ? `<div class="actions"><a class="btn small" href="${esc(e.live_url)}" target="_blank" rel="noopener">Live-Seite</a></div>` : ""}
+        ${inhaber() && e.status !== "live" ? `<div class="actions"><button class="btn small" type="button" data-entwurfneu="${e.id}">Auswahl ändern</button></div>` : ""}`}
+    </div>`;
+  }
   async function demoSheet(id) {
     let l; try { l = await store.lead(id); } catch (e) { return fehler(e); }
     const root = sheet("Demo-Infos · " + l.firma, `<form id="f" class="form">${demoFelder(l.demo_infos || {}, l)}<div class="full"><button class="btn primary block" type="submit">Speichern</button></div></form>`, id);
@@ -599,6 +618,7 @@
     const root = sheet(l.firma, `
       <div class="block">
         <div class="kv"><span class="pill ${st[1]}">${st[0]}</span><span class="meta">${esc(l.lead_nr || "")} · ${esc(l.owner ? name(l.owner) : "Pool")}${l.versuche ? " · " + l.versuche + " Versuche" : ""}</span></div>
+        ${l.tippgeber ? `<div class="kv"><span class="pill ok">Empfehlung: ${esc(tippName(l.tippgeber))} (${esc(l.tippgeber)})</span><span class="meta">Tippgeber wird beim Abschluss automatisch eingetragen</span></div>` : ""}
         ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a></div>` : ""}
         ${l.website ? `<div class="kv">${webLink(l.website)}${WEB[l.website_bewertung] ? `<span class="pill ${WEB[l.website_bewertung][1]}">${WEB[l.website_bewertung][0]}</span>` : ""}</div>${l.website_befund ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}` : ""}
         <div class="kv">${mapsLink(l)}</div>
@@ -606,6 +626,7 @@
         ${l.email && l.info_mail === "offen" ? `<div class="actions"><button class="btn small primary" type="button" data-infomail="${l.id}">Info-Mail öffnen</button><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>` : ""}
         ${l.interesse_produkte && l.interesse_produkte.length ? `<div class="meta"><span>Interesse: ${esc(l.interesse_produkte.join(", "))}</span></div>` : ""}
         ${l.demo_website ? `<div class="demobox"><div class="kv"><b>Demo-Website: ${esc(l.demo_website.replace("_", " "))}</b><button class="btn small" type="button" data-demoinfo="${l.id}">${l.demo_infos ? "Infos bearbeiten" : "Infos erfassen"}</button></div>${demoText(l.demo_infos) || `<div class="due">Noch keine Infos für die Demo erfasst.</div>`}</div>` : ""}
+        ${l._entwuerfe ? entwuerfeBlock(l._entwuerfe) : ""}
         ${l.gesperrt ? `<div class="due">Keine Werbung – nicht mehr kontaktieren.</div>` : ""}
         ${l.status === "vorgemerkt" ? `<div class="demobox"><div class="kv"><b>Für später: ${esc((l.vorgemerkt || []).map(spaeterName).join(", ") || "–")}</b>${l.vorgemerkt_am ? `<span class="meta">seit ${dDE(l.vorgemerkt_am)}</span>` : ""}</div>
           <div class="actions"><button class="btn small" type="button" data-spaeter="${l.id}">Ändern</button><button class="btn small" type="button" data-reaktiv="${l.id}">Wieder in die Arbeit holen</button></div></div>` : ""}
@@ -786,8 +807,8 @@
     const l = S.data.detail; if (!l || l.id !== id) return;
     const frueher = (l._deals || []).filter(d => d.art !== "storno");
     const art = frueher.length ? "folge" : "neu";
-    const vertr = frueher.length ? frueher[0].vertriebler : (l.owner || S.view.kuerzel);
-    const tipp = frueher.length ? (frueher[0].tippgeber || "") : "";
+    const vertr = frueher.length ? frueher[0].vertriebler : l.tippgeber ? "INH" : (l.owner || S.view.kuerzel);   // Empfehlung: Ziu verkauft, Tippgeber bekommt 25 %
+    const tipp = frueher.length ? (frueher[0].tippgeber || "") : (l.tippgeber || "");
     const root = sheet((art === "folge" ? "Folgeauftrag · " : "Abschluss · ") + l.firma, `<form id="f" class="form">
       <div class="field full"><label for="p">Produkt</label><select id="p">${PRODUKTE.map(p => `<option value="${p.code}">${esc(p.name)} – ${eur(p.setup)} + ${eur(p.monat)}/Monat</option>`).join("")}</select></div>
       <div class="field" id="knw" hidden><label for="kn">Kanäle</label><input id="kn" type="number" min="1" max="6" step="1" inputmode="numeric" value="1"></div>
@@ -964,8 +985,8 @@
   function zusageSheet(id) {
     const l = S.data.detail; if (!l || l.id !== id) return;
     const frueher = (l._deals || []).filter(d => d.art !== "storno");
-    const vertr = frueher.length ? frueher[0].vertriebler : (l.owner || S.view.kuerzel);
-    const tipp = frueher.length ? (frueher[0].tippgeber || "") : "";
+    const vertr = frueher.length ? frueher[0].vertriebler : l.tippgeber ? "INH" : (l.owner || S.view.kuerzel);   // Empfehlung: Ziu verkauft, Tippgeber bekommt 25 %
+    const tipp = frueher.length ? (frueher[0].tippgeber || "") : (l.tippgeber || "");
     const vorschlag = PRODUKTE.find(p => (l.interesse_produkte || []).includes(p.code)) || PRODUKTE[0];
     const root = sheet("Zusage · " + l.firma, `<form id="f" class="form">
       <p class="hint full" style="margin:0">Der Kunde hat am Telefon Ja gesagt. Das ist noch kein Abschluss – der zählt, sobald er beauftragt (Vertrag bzw. Online-Auftrag).</p>
@@ -1187,8 +1208,9 @@
         <div class="field"><label for="tel1">Meine Telefonnummer</label><input id="tel1" type="tel" inputmode="tel" placeholder="z. B. 0151 23456789" value="${esc(me.telefon)}"></div>
         <div class="field full"><label for="tl1">Mein Link zur Terminbuchung (Cal.com)</label><input id="tl1" type="url" inputmode="url" placeholder="https://cal.com/…" value="${esc(me.termin_link)}"></div>
         <div class="full"><button class="btn small" type="submit">Speichern</button></div></form>
-        <p class="hint">Beides steht in den Info-Mails, die du verschickst – Kunden buchen damit direkt in deinem Kalender.</p>
+        <p class="hint">${inhaber() ? "Beides steht in allen Info-Mails und auf der Auftragsseite – nach außen erscheinst immer du." : "Nur intern: Nach außen (Mails, Auftragsseite) erscheint immer Ziu mit seiner Nummer und seinem Terminlink."}</p>
         <details id="calcom"><summary>Cal.com mit der App verbinden (einmalig)</summary><div id="calcomin" class="hint">Lädt …</div></details></div>`; })()}
+      ${inhaber() && store.mode === "live" ? `<h2 class="sec">Partner & Empfehlungslinks</h2><div class="block" id="partnerblock"><p class="hint">Lädt …</p></div>` : ""}
       <h2 class="sec">Benachrichtigungen</h2><div class="block" id="pushblock">${pushHTML()}</div>
       ${store.mode === "live" ? `<h2 class="sec">Passwort ändern</h2><div class="block"><form id="pwneu" class="form"><div class="field"><label for="pn1">Neues Passwort</label><input id="pn1" type="password" autocomplete="new-password" minlength="8" required></div><div class="field" style="justify-content:flex-end"><button class="btn small" type="submit">Speichern</button></div></form></div>` : ""}
       <h2 class="sec">Darstellung</h2><div class="seg" role="group" aria-label="Design">
@@ -1222,6 +1244,14 @@
           Danach landet jede Online-Buchung automatisch als Termin in der App (mit Push). Erinnerungen kommen morgens um 7 Uhr und 60 Minuten vor jedem Termin.`;
       } catch (err) { root.querySelector("#calcomin").textContent = "Konnte nicht geladen werden."; }
     });
+    const pb = root.querySelector("#partnerblock");
+    if (pb) store.partnerLinks().then(ps => {
+      pb.innerHTML = (ps || []).map(p => { const seite = new URL("partner.html?t=" + encodeURIComponent(p.token), location.href).href; return `
+        <div class="kv"><b>${esc(p.name)}</b><span class="meta">${esc(p.tippgeber_id)}${p.aktiv ? "" : " · inaktiv"}</span></div>
+        <div class="kv"><span class="v" style="word-break:break-all">${esc(p.link)}</span><button class="btn small" type="button" data-copy="${esc(p.link)}">Link kopieren</button></div>
+        <div class="kv"><span class="meta">Private Seite für ${esc(p.name.split(" ")[0])} (Anfragen, Kunden, Provision)</span><button class="btn small" type="button" data-copy="${esc(seite)}">Seite kopieren</button></div>`; }).join("")
+        + `<p class="hint">Wer über den Link den Check macht oder schreibt, wird automatisch als Empfehlung eingetragen – sofern der Betrieb noch unberührt war. 25 % auf jede Einrichtung, keine Rabatte für Geworbene. Neue Partner: Partner-Notiz im Vault + Eintrag in der Tabelle partner.</p>`;
+    }).catch(() => { pb.innerHTML = `<p class="hint">Konnte nicht geladen werden.</p>`; });
     root.querySelector("#telf").addEventListener("submit", async e => { e.preventDefault(); try { await store.setProfil(root.querySelector("#tel1").value.trim(), root.querySelector("#tl1").value.trim()); S.team = await store.team(); toast("Gespeichert"); } catch (err) { fehler(err); } });
     const pn = root.querySelector("#pwneu");
     if (pn) pn.addEventListener("submit", async e => { e.preventDefault(); try { await store.passwortAendern(root.querySelector("#pn1").value); toast("Passwort geändert"); root.querySelector("#pn1").value = ""; } catch (err) { toast("Mindestens 8 Zeichen – bitte nochmal versuchen."); } });
@@ -1305,6 +1335,14 @@
     if (ds.deal) return dealSheet(+ds.deal);
     if (ds.zusage) return zusageSheet(+ds.zusage);
     if (ds.demoinfo) return demoSheet(+ds.demoinfo);
+    if (ds.wahl) { t.closest(".wahl").querySelectorAll("[data-wahl]").forEach(b => b.setAttribute("aria-pressed", String(b === t))); return; }
+    if (ds.entwurfok) {
+      const box = t.closest(".entwuerfe-box"), g = box.querySelector("[data-wahl][aria-pressed=true]"), fb = box.querySelector(".feedback").value.trim();
+      if (!g) return toast("Bitte erst einen Entwurf (A/B/C) antippen.");
+      try { await store.entwurfWaehlen(+ds.entwurfok, { gewaehlt: g.dataset.wahl, feedback: fb || null }); toast("Auswahl gespeichert – Ziu/Claude baut Entwurf " + g.dataset.wahl.toUpperCase() + " aus"); detail(S.data.detail.id); } catch (err) { fehler(err); }
+      return;
+    }
+    if (ds.entwurfneu) { try { await store.entwurfWaehlen(+ds.entwurfneu, { status: "entwuerfe" }); detail(S.data.detail.id); } catch (err) { fehler(err); } return; }
     if (ds.auftrag) return auftragSheet(+ds.auftrag);
     if (ds.setstatus) { try { await store.leadUpdate(id, { status: ds.setstatus, wiedervorlage: naechsterWerktag(3, 10).toISOString(), naechster_schritt: "Nachfassen Angebot" }); await store.aktivitaet({ lead_id: id, typ: "status", ergebnis: ds.setstatus }); toast("Status: Angebot"); detail(id); } catch (err) { fehler(err); } return; }
     if (ds.sperren) { try { await store.leadUpdate(+ds.sperren, { gesperrt: true, wiedervorlage: null }); await store.aktivitaet({ lead_id: +ds.sperren, typ: "status", text: "Keine Werbung gewünscht – gesperrt" }); toast("Gesperrt"); detail(+ds.sperren); } catch (err) { fehler(err); } return; }
@@ -1341,6 +1379,11 @@
   // Bei JEDEM App-Update oben einen Eintrag ergänzen (neueste zuerst, v = Datum JJJJ-MM-TT, bei mehreren am Tag „-2“ usw.).
   // Nur, was für Ziu/Elias im Alltag wichtig ist – kurz, in Stichpunkten. { t, nur: "inhaber" } = nur für Ziu sichtbar.
   const NEUES = [
+    { v: "2026-10-06", titel: "Empfehlungslinks (Partner)", punkte: [
+      "Wer über einen <b>Empfehlungslink</b> (z. B. von Jörg) auf infinero.de kommt und den Check macht oder schreibt, ist in der App mit <b>„Empfehlung: Jörg“</b> markiert.",
+      "Es zählt, wer zuerst da war: War der Betrieb schon bei uns in Arbeit, gibt es keine Empfehlung.",
+      { t: "Beim Abschluss wird der Tippgeber automatisch eingetragen (25 % auf die Einrichtung, keine Rabatte). Links und Jörgs private Übersichtsseite: Profil → „Partner & Empfehlungslinks“.", nur: "inhaber" },
+    ] },
     { v: "2026-10-05-4", titel: "Nach außen spricht INFINERO mit einer Stimme", punkte: [
       "Info-Mails, Auftrags-Mails und die Auftragsseite für Kunden sind jetzt <b>immer von Ziu (Inhaber)</b> unterschrieben – mit Zius Telefonnummer und Terminlink.",
       "Hat Elias angerufen, steht in der Mail „mein Kollege“ – ohne Namen.",
@@ -1421,6 +1464,7 @@
     if (p.ohneZugang) { await store.signOut(); return login(`Für ${p.email} ist noch kein Zugang eingerichtet. Bitte Ziu Bescheid geben.`); }
     S.profil = p; S.team = await store.team();
     try { [S.zg, S.cfg] = await Promise.all([store.zielgruppen(), store.vertriebConfig()]); } catch (e) { console.warn(e); S.zg = []; S.cfg = null; }
+    try { S.partner = await store.partner(); } catch (e) { console.warn(e); S.partner = []; }
     const gespeichert = lsGet(ANSICHT_KEY);
     const start = darfWechseln() && S.team.some(m => m.kuerzel === gespeichert) ? gespeichert : (store.mode === "demo" ? "EF" : p.kuerzel);
     S.view = S.team.find(m => m.kuerzel === start) || S.team.find(m => m.kuerzel === p.kuerzel) || { ...p };
@@ -1428,6 +1472,7 @@
     if (store.mode === "demo") $("#banner").innerHTML = `<div class="banner">Demo-Modus: Beispieldaten nur auf diesem Gerät. Ansicht wechseln über den Namen oben rechts.</div>`;
     const h = location.hash.slice(1), erlaubt = ["heute", "leads", "termine", "auftraege", "deals", "statistik", ...(inhaber() ? ["cockpit"] : [])];
     await zeige(erlaubt.includes(h) ? h : h === "prov" ? "deals" : "heute");
+    if (/^lead\/\d+$/.test(h)) { history.replaceState(null, "", location.pathname); detail(+h.split("/")[1]); }   // Push „Entwürfe fertig“ öffnet den Lead
     neuesZeigen();   // Patchnotes einmal nach jedem Update
   }
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});

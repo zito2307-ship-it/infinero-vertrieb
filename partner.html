@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<title>Deine Empfehlungen · INFINERO</title>
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{--bg:#EEF1F5;--surface:#fff;--surface-2:#F5F7FA;--line:#D8DEE6;--ink:#141C26;--muted:#5A6878;--accent:#2F55D4;--accent-soft:#E3E9FB;
+  --ok:#1B7F4B;--ok-soft:#DDF2E6;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;--body:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+[hidden]{display:none!important}
+main{max-width:560px;margin:0 auto;padding:28px 16px 48px}
+.brand{font:700 15px/1 var(--display);letter-spacing:.08em;color:var(--muted);margin:0 0 18px}
+h1{font:700 30px/1.15 var(--display);margin:0 0 6px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 22px}
+.kacheln{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.k{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 12px}
+.k b{display:block;font:700 28px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.k span{font-size:13px;color:var(--muted)}
+.geld{background:var(--ok-soft);border:1px solid #BFE3CD;border-radius:14px;padding:16px;margin-bottom:22px}
+.geld b{display:block;font:700 34px/1.1 var(--display);color:var(--ok);font-variant-numeric:tabular-nums}
+.geld span{font-size:14px;color:#235C3D}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+.box h2{font:600 17px/1.3 var(--display);margin:0 0 10px}
+.link{display:flex;gap:8px;align-items:center}
+.link input{flex:1;min-width:0;font:15px var(--body);padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--ink)}
+button{font:600 15px var(--body);padding:10px 14px;border-radius:10px;border:0;background:var(--accent);color:#fff;cursor:pointer;touch-action:manipulation}
+button:active{transform:scale(.97)}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:15px}
+li:first-child{border-top:0}
+li time{color:var(--muted);font-variant-numeric:tabular-nums}
+.hint{font-size:14px;color:var(--muted);margin:8px 0 0}
+.fehler{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+</style>
+</head>
+<body>
+<main>
+  <p class="brand">INFINERO</p>
+  <div id="laedt" class="sub">Einen Moment …</div>
+  <div id="fehler" class="fehler" hidden>Dieser Link ist nicht (mehr) gültig. Bitte melde dich bei Ziu.</div>
+  <div id="inhalt" hidden>
+    <h1 id="hallo">Hallo!</h1>
+    <p class="sub">So läuft es mit deinen Empfehlungen.</p>
+    <div class="kacheln">
+      <div class="k"><b id="anfragen">0</b><span>Anfragen</span></div>
+      <div class="k"><b id="gespraech">0</b><span>im Gespräch</span></div>
+      <div class="k"><b id="kunden">0</b><span>Kunden</span></div>
+    </div>
+    <div class="geld"><b id="verdient">0,00 €</b><span id="geldtext">verdient</span></div>
+    <div class="box">
+      <h2>Dein Link zum Teilen</h2>
+      <div class="link"><input id="link" readonly aria-label="Dein Empfehlungslink"><button type="button" id="kopieren">Kopieren</button></div>
+      <p class="hint">Wer über diesen Link den kostenlosen Sichtbarkeits-Check macht oder uns schreibt, zählt als deine Empfehlung – solange wir den Betrieb noch nicht kannten. Du bekommst <b id="satz">25&nbsp;%</b> vom Einrichtungspreis, auch bei späteren Aufträgen desselben Kunden.</p>
+      <p class="hint">Wenn du den Link in einer Story oder einem Beitrag teilst: bitte als <b>„Werbung“</b> kennzeichnen.</p>
+    </div>
+    <div class="box" id="verlaufbox" hidden>
+      <h2>Verlauf</h2>
+      <ul id="verlauf"></ul>
+    </div>
+    <p class="hint">Aus Datenschutzgründen siehst du hier nur Zahlen, keine Namen. Fragen? Ruf Ziu an.</p>
+  </div>
+</main>
+<script src="config.js"></script>
+<script>
+(function () {
+  var cfg = window.INFINERO_CONFIG || {};
+  var URL_ = cfg.supabaseUrl || "https://ckiuvhuvuicbiabfkggg.supabase.co";
+  var t = new URLSearchParams(location.search).get("t") || "";
+  var $ = function (id) { return document.getElementById(id); };
+  var eur = function (n) { return (+n || 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"; };
+  var datum = function (s) { var p = String(s).split("-"); return p[2] + "." + p[1] + "." + p[0]; };
+  function fehler() { $("laedt").hidden = true; $("fehler").hidden = false; }
+  if (!/^[0-9a-f-]{36}$/i.test(t)) return fehler();
+  fetch(URL_ + "/rest/v1/rpc/partner_stand", {
+    method: "POST",
+    headers: { "content-type": "application/json", apikey: cfg.supabaseAnonKey || "" },
+    body: JSON.stringify({ p_token: t })
+  }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+    if (!d) return fehler();
+    $("laedt").hidden = true; $("inhalt").hidden = false;
+    $("hallo").textContent = "Hallo " + d.name + "!";
+    $("anfragen").textContent = d.anfragen;
+    $("gespraech").textContent = d.im_gespraech;
+    $("kunden").textContent = d.kunden;
+    $("verdient").textContent = eur(d.verdient);
+    $("geldtext").textContent = "verdient" + (+d.verdient > 0 ? " · davon " + eur(d.ausgezahlt) + " ausgezahlt" : " – das kommt noch");
+    $("satz").textContent = Math.round(d.satz * 100) + "\u00a0%";
+    $("link").value = d.link;
+    var v = d.verlauf || [];
+    if (v.length) {
+      $("verlaufbox").hidden = false;
+      $("verlauf").innerHTML = v.map(function (x) {
+        return "<li><span>" + (x.was === "Neuer Kunde" ? "🎉 Neuer Kunde" : x.was) + (x.betrag ? " · " + eur(x.betrag) : "") + "</span><time>" + datum(x.datum) + "</time></li>";
+      }).join("");
+    }
+  }).catch(fehler);
+  $("kopieren").addEventListener("click", function () {
+    var l = $("link").value;
+    (navigator.clipboard ? navigator.clipboard.writeText(l) : Promise.reject()).then(function () { $("kopieren").textContent = "Kopiert ✓"; },
+      function () { $("link").select(); document.execCommand("copy"); $("kopieren").textContent = "Kopiert ✓"; });
+    setTimeout(function () { $("kopieren").textContent = "Kopieren"; }, 2000);
+  });
+})();
+</script>
+</body>
+</html>
