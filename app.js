@@ -71,7 +71,7 @@
   const KANAL_TYP = { telefon: "anruf", email: "mail", vor_ort: "besuch" };   // Aktivitätstyp je Kanal (Statistik zählt nur „anruf“ als Anruf)
   const KANAL_KEY = "infinero-kanal", VO_MAX = 2;                             // nach 2× nicht angetroffen → ans Telefon
   const kanalVon = l => (l && l.kanal) || "telefon";
-  // E-Mails schreibt nur der Inhaber (Ziu) – Vertriebler sehen weder den E-Mail-Kanal noch Mail-Knöpfe
+  // E-Mail-Marketing (Kanal E-Mail: Erstkontakt/Nachfass) macht nur der Inhaber – Info-Mail und Auftrags-Mail dürfen alle
   const mailErlaubt = () => !!(S.profil && S.profil.rolle === "inhaber");
   const kanaele = () => KANAELE.filter(([k]) => k !== "email" || mailErlaubt());
 
@@ -718,8 +718,7 @@
     const aktualisieren = () => { q("#am_open").href = mailtoVon(q("#am_an").value.trim(), q("#am_b").value, q("#am_t").value); };
     ["#am_an", "#am_b", "#am_t"].forEach(x => q(x).addEventListener("input", aktualisieren)); aktualisieren();
     const verschickt = async () => { if (a.stufe === "zusage") { await store.auftragUpdate(a.id, { stufe: "auftrag_raus", gesendet_am: new Date().toISOString() }); a.stufe = "auftrag_raus"; } };
-    if (!mailErlaubt()) { q("#am_open").hidden = true; q("#am_copy").classList.add("primary"); }
-    else store.mailBereit().then(ok => { if (ok) { q("#am_direkt").hidden = false; } else q("#am_open").classList.add("primary"); });
+    store.mailBereit().then(ok => { if (ok) { q("#am_direkt").hidden = false; } else q("#am_open").classList.add("primary"); });
     q("#am_send").addEventListener("click", async e => {
       const an = q("#am_an").value.trim(), b = e.currentTarget;
       if (!an) return toast("Bitte Empfänger eintragen");
@@ -746,7 +745,7 @@
         <label class="check full"><input id="i_ok" type="checkbox" required><span>Der Kontakt hat zugestimmt, dass wir ihm Infos per E-Mail schicken.</span></label>
         <div class="field full"><label for="i_n">Notiz</label><input id="i_n" placeholder="z. B. will Preise für Website + Chatbot"></div>
         <div class="full"><button class="btn primary block" type="submit">Speichern</button></div>
-      </form><p class="hint">${mailErlaubt() ? "" : "Ziu bekommt die Anfrage und schickt die Info-Mail. "}Danach im Lead auf „Info-Mail öffnen“ tippen – die fertige Mail (Vorlage der Zielgruppe mit Produkten, Preisen und Demo-Link) öffnet sich in der Mail-App. Als Absender immer <b>kontakt@infinero.de</b> wählen. Offene Mails sieht Ziu auch im Cockpit.</p>`);
+      </form><p class="hint">Danach im Lead auf „Info-Mail öffnen“ tippen – die fertige Mail (Vorlage der Zielgruppe mit Produkten, Preisen und Demo-Link) öffnet sich in der Mail-App. Als Absender immer <b>kontakt@infinero.de</b> wählen. Offene Mails sieht Ziu auch im Cockpit.</p>`);
     root.querySelector("#f").addEventListener("submit", async e => {
       e.preventDefault();
       const f = root; const prods = gewaehlt(f);
@@ -926,9 +925,8 @@
         ${l.website ? `<div class="kv">${webLink(l.website)}${WEB[l.website_bewertung] ? `<span class="pill ${WEB[l.website_bewertung][1]}">${WEB[l.website_bewertung][0]}</span>` : ""}</div>${l.website_befund ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}` : ""}
         <div class="kv">${mapsLink(l)}</div>
         ${l.email ? `<div class="kv"><span class="v">${esc(l.email)}</span>${l.einwilligung_email ? `<span class="pill ok">Einwilligung ${dDE(l.einwilligung_email)}</span>` : ""}</div>` : ""}
-        ${mailErlaubt() && l.email && l.info_mail === "offen" ? `<div class="actions"><button class="btn small primary" type="button" data-infomail="${l.id}">Info-Mail öffnen</button><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>` : ""}
+        ${l.email && l.info_mail === "offen" ? `<div class="actions"><button class="btn small primary" type="button" data-infomail="${l.id}">Info-Mail öffnen</button><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>` : ""}
         ${l.interesse_produkte && l.interesse_produkte.length ? `<div class="meta"><span>Interesse: ${esc(l.interesse_produkte.join(", "))}</span></div>` : ""}
-        ${l.info_mail === "offen" && !mailErlaubt() ? `<div class="meta"><span>Info-Mail ist bei Ziu angefragt</span></div>` : ""}
         ${l.demo_gesehen_am ? `<div class="kv">${demoGesehen(l)}<button class="btn small" type="button" data-copy="${esc(demoVon(l))}">Persönlicher Demo-Link</button></div>` : `<div class="kv"><span class="meta">Persönlicher Demo-Link (meldet, wenn er geöffnet wird)</span><button class="btn small" type="button" data-copy="${esc(demoVon(l))}">Kopieren</button></div>`}
         ${l.demo_website ? `<div class="demobox"><div class="kv"><b>Demo-Website: ${esc(l.demo_website.replace("_", " "))}</b><button class="btn small" type="button" data-demoinfo="${l.id}">${l.demo_infos ? "Infos bearbeiten" : "Infos erfassen"}</button></div>${demoText(l.demo_infos) || `<div class="due">Noch keine Infos für die Demo erfasst.</div>`}</div>` : ""}
         ${l._entwuerfe ? entwuerfeBlock(l._entwuerfe) : ""}
@@ -1663,7 +1661,7 @@
     if (ds.dodel) { try { await store.leadLoeschen(+ds.dodel); schliessen(); toast("Gelöscht"); } catch (err) { fehler(err); } return; }
     if (ds.terminok || ds.terminab) { try { await store.terminUpdate(+(ds.terminok || ds.terminab), { status: ds.terminok ? "erledigt" : "abgesagt" }); toast(ds.terminok ? "Termin erledigt" : "Termin abgesagt"); zeige(); } catch (err) { fehler(err); } return; }
     if (ds.pay || ds.payout) { try { await store.dealUpdate(+(ds.pay || ds.payout), { [ds.pay ? "zahlung_eingegangen" : "provision_ausgezahlt"]: isoDate(new Date()) }); toast("Eingetragen"); zeige(); } catch (err) { fehler(err); } return; }
-    if (ds.infomail) return mailErlaubt() ? infoMailSheet(+ds.infomail) : toast("Mails verschickt Ziu");
+    if (ds.infomail) return infoMailSheet(+ds.infomail);
     if (ds.mailok) { try { await store.leadUpdate(+ds.mailok, { info_mail: "gesendet" }); await store.aktivitaet({ lead_id: +ds.mailok, typ: "mail", text: "Info-Mail gesendet" }); toast("Als gesendet markiert"); schliessen(); } catch (err) { fehler(err); } return; }
     if (ds.demo) { try { await store.leadUpdate(id, { demo_website: ds.demo }); toast("Demo-Website: " + (ds.demo === "fertig" ? "fertig" : "in Arbeit")); zeige(); } catch (err) { fehler(err); } return; }
     if (ds.copy) { try { await navigator.clipboard.writeText(ds.copy); toast("Kopiert"); } catch (err) { toast(ds.copy); } return; }
@@ -1712,10 +1710,11 @@
       "Oben in „Heute“ wählst du jetzt den <b>Kanal</b>. „Telefon“ ist alles wie bisher.",
       "<b>Vor Ort</b>: nur Betriebe <b>in der Innenstadt</b> (zu Fuß erreichbar) <b>ohne Website oder mit klar veralteter Seite</b> – <b>Jena zuerst</b>, dann Weimar, Erfurt, Gera, Leipzig. Die Liste ist als Laufweg sortiert, mit nummerierter <b>Laufroute in Google Maps</b> (bei vielen Betrieben in Etappen à 10 Stopps).",
       "Vor Ort gibt es „Demo zeigen“, „Vorab-Demo“ (Ziu baut vorher eine eigene Demo für den Betrieb) und „Zusage!“. Nach 2× nicht angetroffen geht der Betrieb ans Telefon.",
+      "Info-Mails sehen jetzt edler aus: gestaltet im INFINERO-Look mit neuer Signatur.",
       "<b>Nächster Schritt</b> ist jetzt auf jeder Karte eine Auswahl (Anrufen, Demo bauen, Angebot schicken …). „Demo bauen“ meldet den Wunsch direkt an Ziu.",
       "<b>👀 Demo angesehen</b>: Jeder Betrieb hat einen persönlichen Demo-Link („Link kopieren“, Details). Öffnet er ihn, kommt sofort eine Push-Nachricht – perfekter Moment zum Anrufen.",
       { t: "<b>E-Mail-Kanal (nur für dich)</b>: Betriebe mit Mail-Adresse – die App sucht Adressen selbst auf Website und Impressum. „Mail schreiben“ mit Vorlage oder <b>✨ Claude</b>, Versand als <b>gestaltete Mail im INFINERO-Look</b> mit neuer Signatur. Nach 4 Werktagen Nachfass-Mail, danach geht der Betrieb ans Telefon.", nur: "inhaber" },
-      { t: "Mails (Info-Mail, Online-Auftrag per Mail, Erstkontakt) kann nur noch Ziu verschicken – Vertriebler sehen keine Mail-Knöpfe, den Auftragslink können sie weiter kopieren.", nur: "inhaber" },
+      { t: "Der E-Mail-Kanal (Erstkontakt/Nachfass) ist nur für dich – Vertriebler sehen ihn nicht. Info-Mail und Auftrags-Mail funktionieren für alle wie bisher.", nur: "inhaber" },
     ] },
     { v: "2026-10-06", titel: "Empfehlungslinks (Partner)", punkte: [
       "Wer über einen <b>Empfehlungslink</b> (z. B. von Jörg) auf infinero.de kommt und den Check macht oder schreibt, ist in der App mit <b>„Empfehlung: Jörg“</b> markiert.",
