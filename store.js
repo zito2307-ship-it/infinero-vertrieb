@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  const OFFEN = ["nicht_erreicht", "rueckruf", "info_angefragt", "interesse", "termin", "angebot"];
+  const OFFEN = ["nicht_erreicht", "rueckruf", "info_angefragt", "interesse", "termin", "angebot", "angeschrieben"];
   const tagStart = (d = new Date()) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
   const tagEnde = (d = new Date()) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; };
 
@@ -35,19 +35,23 @@
     async tageslisteStart() { return this._check(this.sb.rpc("tagesliste_start")); }
     async nachladen(n, zielgruppe = null) { return this._check(this.sb.rpc("leads_nachladen", { anzahl: n, fuer: this.k, zielgruppe })); }
     async poolZahlen() { return this._check(this.sb.rpc("pool_verfuegbar")); }
+    // E-Mail- / Vor-Ort-Leads gezielt laden (eigene Regeln je Kanal, siehe supabase/kanaele.sql)
+    async kanalLaden(kanal, n, zg = null, ort = null) { return this._check(this.sb.rpc("leads_laden_kanal", { p_kanal: kanal, p_anzahl: n, p_zg: zg, p_ort: ort, p_fuer: this.k })); }
+    async poolKanal() { return this._check(this.sb.rpc("pool_kanal")); }
 
     async heute() {
       const k = this.k, s = tagStart().toISOString(), e = tagEnde().toISOString();
-      const [termine, faellig, neue, anrufe] = await Promise.all([
+      const zaehl = typ => this.sb.from("aktivitaeten").select("id", { count: "exact", head: true }).eq("von", k).eq("typ", typ).gte("zeit", s);
+      const [termine, faellig, neue, anrufe, mails, besuche] = await Promise.all([
         this._check(this.sb.from("termine").select("*, lead:leads(id,firma,telefon,ort,strasse,plz)")
           .contains("mit", [k]).eq("status", "geplant").gte("beginn", s).lte("beginn", e).order("beginn")),
         this._check(this.sb.from("leads").select("*").eq("owner", k).in("status", OFFEN).eq("gesperrt", false)
           .lte("wiedervorlage", e).order("wiedervorlage")),
         this._check(this.sb.from("leads").select("*").eq("owner", k).eq("status", "neu").eq("gesperrt", false)
           .order("prio", { ascending: false }).order("reihe", { ascending: true, nullsFirst: false }).order("id").limit(1000)),
-        this.sb.from("aktivitaeten").select("id", { count: "exact", head: true }).eq("von", k).eq("typ", "anruf").gte("zeit", s),
+        zaehl("anruf"), zaehl("mail"), zaehl("besuch"),
       ]);
-      return { termine, faellig, neue, anrufe: anrufe.count || 0 };
+      return { termine, faellig, neue, anrufe: anrufe.count || 0, mails: mails.count || 0, besuche: besuche.count || 0 };
     }
     async leads({ q = "", filter = "offen", nurEigene = false, produkt = null } = {}) {
       let x = this.sb.from("leads").select("*").order("geaendert_am", { ascending: false }).limit(300);
@@ -117,7 +121,7 @@
     async calcomWebhook() { return this._check(this.sb.rpc("calcom_webhook")); }
     async mailBereit() { try { return !!(await this._check(this.sb.rpc("mailversand_bereit"))); } catch (e) { return false; } }
     async mailSenden(m) { const { data, error } = await this.sb.functions.invoke("mailsenden", { body: m }); if (error) { let t = error.message; try { t = (await error.context.json()).fehler || t; } catch (_) {} throw new Error(t); } if (!data || !data.ok) throw new Error((data && data.fehler) || "Versand fehlgeschlagen"); return data; }
-    async kiMail(lead_id, stichpunkte) { const { data, error } = await this.sb.functions.invoke("infomail", { body: { lead_id, stichpunkte: stichpunkte || null } }); if (error) throw error; return data || {}; }
+    async kiMail(lead_id, stichpunkte, art = "info") { const { data, error } = await this.sb.functions.invoke("infomail", { body: { lead_id, stichpunkte: stichpunkte || null, art } }); if (error) throw error; return data || {}; }
     async setProfil(telefon, termin_link) { await this._check(this.sb.rpc("mein_profil_setzen", { p_telefon: telefon || "", p_termin_link: termin_link || "" })); }
     async statistikTage(von, bis) { return this._check(this.sb.rpc("statistik_tage", { p_von: von, p_bis: bis })); }
     async statistikGruppen(von, bis, dimension, nur) { return this._check(this.sb.rpc("statistik_gruppen", { p_von: von, p_bis: bis, dimension, nur: nur || null })); }
@@ -134,7 +138,7 @@
   }
 
   // ------------------------------------------------------------------ Demo
-  const DEMO_KEY = "infinero-demo-v2";
+  const DEMO_KEY = "infinero-demo-v4";
   class DemoStore {
     constructor() { this.mode = "demo"; this._load(); }
     _load() {
@@ -144,7 +148,8 @@
     }
     _save() { try { localStorage.setItem(DEMO_KEY, JSON.stringify(this.d)); } catch (e) {} }
     _seed() {
-      const orte = ["Erfurt", "Gera", "Rudolstadt", "Saalfeld/Saale", "Naumburg (Saale)", "Eisenberg"];
+      const orte = ["Jena", "Erfurt", "Gera", "Rudolstadt", "Saalfeld/Saale", "Eisenberg"];
+      const mitte = { Jena: [50.9282, 11.5880], Erfurt: [50.9781, 11.0294], Gera: [50.8780, 12.0817] };
       const br = ["Elektriker", "Maler", "Friseur", "Nagelstudio", "Autowerkstatt", "Restaurant", "Dachdecker", "Kosmetikstudio", "Pizzeria", "Tattoostudio"];
       const zg = b => /Friseur|Nagel|Kosmetik|Tattoo/.test(b) ? "beauty" : /Restaurant|Pizzeria|Café/.test(b) ? "gastro" : "handwerk";
       const namen = ["Meyer", "Schulze", "Krause", "Lehmann", "Wolf", "Hoffmann", "Richter", "Neumann", "Braun", "Zimmermann", "Hartmann", "Lange", "Werner", "Koch", "Vogel"];
@@ -153,8 +158,11 @@
         const b = br[i % br.length], n = namen[i % namen.length], o = orte[i % orte.length];
         const web = i % 3 === 0 ? "" : `${b.toLowerCase().replace(/[^a-z]/g, "")}-${n.toLowerCase()}.example`;
         leads.push({ id: id++, lead_nr: "L-" + String(id - 1).padStart(6, "0"), erfasst_am: new Date().toISOString(), quelle: "Beispiel",
-          firma: `${b} ${n} (Beispiel)`, branche: b, zielgruppe: zg(b), telefon: `+49 3641 ${String(100000 + i * 37).slice(0, 6)}`, email: "", website: web,
-          plz: "", ort: o, website_bewertung: web ? (i % 2 ? "veraltet" : "ok") : "keine", prio: web ? (i % 2 ? 20 : 0) : 10,
+          firma: `${b} ${n} (Beispiel)`, branche: b, zielgruppe: zg(b), telefon: `+49 3641 ${String(100000 + i * 37).slice(0, 6)}`,
+          email: web && i % 4 === 1 ? `info@${web}` : "", website: web, strasse: `${["Markt", "Bahnhofstraße", "Lindenweg", "Am Anger"][i % 4]} ${1 + (i % 40)}`,
+          plz: String(99084 + (i % 6) * 100), ort: o, bewertungen: (i * 13) % 220, bewertung_google: 4 + (i % 10) / 10, kanal: "telefon",
+          lat: mitte[o] ? mitte[o][0] + (((i * 37) % 21) - 10) / 1000 : null, lng: mitte[o] ? mitte[o][1] + (((i * 53) % 21) - 10) / 700 : null,
+          demo_code: (1e9 + i * 7919).toString(16).slice(0, 10).padStart(10, "0"), website_bewertung: web ? (i % 2 ? "veraltet" : "ok") : "keine", prio: web ? (i % 2 ? 20 : 0) : 10,
           website_befund: web && i % 2 ? ["nicht fürs Handy optimiert · © 2016", "Website nicht erreichbar oder ohne HTTPS", "© 2014 · Tabellen-Layout"][i % 3] : null,
           status: "neu", gesperrt: false, owner: null, versuche: 0, interesse_produkte: [], notiz: "" });
       }
@@ -198,7 +206,7 @@
       const pool = kand.sort((a, b) => (b.zielgruppe === fokus) - (a.zielgruppe === fokus) || b.prio - a.prio
         || Math.floor((a._rn - 1) / 5) - Math.floor((b._rn - 1) / 5) || String(a.branche).localeCompare(String(b.branche)) || a._rn - b._rn).slice(0, n);
       const basis = (this.d.reiheSeq = (this.d.reiheSeq || 0) + 1) * 1000;
-      pool.forEach((l, i) => { l.owner = k; l.zugeteilt_am = new Date().toISOString(); l.reihe = basis + i + 1; });
+      pool.forEach((l, i) => { l.owner = k; l.kanal = "telefon"; l.zugeteilt_am = new Date().toISOString(); l.reihe = basis + i + 1; });
       kand.forEach(l => delete l._rn);
       this._save(); return pool.length;
     }
@@ -207,8 +215,27 @@
       const heute = new Date().toISOString().slice(0, 10), k = this.k, p = this.d.team.find(t => t.kuerzel === k);
       if (this.d.tagesliste_am[k] === heute) return 0;
       this.d.tagesliste_am[k] = heute;
-      const offen = this.d.leads.filter(l => l.owner === k && l.status === "neu").length;
+      const offen = this.d.leads.filter(l => l.owner === k && l.status === "neu" && (l.kanal || "telefon") === "telefon").length;
       return this._zuteilen(Math.max((p.tagesziel ?? 100) - offen, 0), k);
+    }
+    // wie leads_laden_kanal / vor_ort_geeignet / email_geeignet in supabase/kanaele.sql
+    _passt(l, kanal) {
+      return kanal === "email" ? !!l.email && l.website_bewertung !== "ok"
+        : l.lat != null && (!l.website || ["keine", "veraltet"].includes(l.website_bewertung));   // Demo: alle Punkte liegen in der Innenstadt
+    }
+    async kanalLaden(kanal, n, zg = null, ort = null) {
+      const frei = this.d.leads.filter(l => !l.owner && l.status === "neu" && !l.gesperrt && (!zg || l.zielgruppe === zg) && (!ort || l.ort === ort) && this._passt(l, kanal))
+        .sort((a, b) => kanal === "vor_ort" ? String(a.plz).localeCompare(String(b.plz)) || String(a.strasse).localeCompare(String(b.strasse), "de", { numeric: true }) : b.prio - a.prio || a.id - b.id).slice(0, n);
+      const basis = (this.d.reiheSeq = (this.d.reiheSeq || 0) + 1) * 1000;
+      frei.forEach((l, i) => Object.assign(l, { owner: this.k, kanal, zugeteilt_am: new Date().toISOString(), reihe: basis + i + 1 }));
+      this._save(); return frei.length;
+    }
+    async poolKanal() {
+      const frei = this.d.leads.filter(l => !l.owner && l.status === "neu" && !l.gesperrt), email = {}, vo = {};
+      frei.filter(l => this._passt(l, "email")).forEach(l => { email[l.zielgruppe] = (email[l.zielgruppe] || 0) + 1; });
+      frei.filter(l => this._passt(l, "vor_ort")).forEach(l => { const k = l.ort + "|" + l.zielgruppe; vo[k] = (vo[k] || 0) + 1; });
+      const rf = ["Jena", "Weimar", "Erfurt", "Gera", "Leipzig"];
+      return { email, vor_ort: Object.entries(vo).map(([k, n]) => ({ ort: k.split("|")[0], zielgruppe: k.split("|")[1], n })).sort((a, b) => rf.indexOf(a.ort) - rf.indexOf(b.ort) || b.n - a.n), mail_suche: 0, geo_offen: 0 };
     }
     async nachladen(n, zielgruppe = null) { return this._zuteilen(n, this.k, zielgruppe); }
     _lead(l) { return { ...l, interesse_produkte: [...(l.interesse_produkte || [])] }; }
@@ -219,8 +246,8 @@
       const faellig = this.d.leads.filter(l => l.owner === k && OFFEN.includes(l.status) && !l.gesperrt && l.wiedervorlage && new Date(l.wiedervorlage) <= e)
         .sort((a, b) => a.wiedervorlage.localeCompare(b.wiedervorlage)).map(x => this._lead(x));
       const neue = this.d.leads.filter(l => l.owner === k && l.status === "neu" && !l.gesperrt).sort((a, b) => b.prio - a.prio || (a.reihe ?? 1e15) - (b.reihe ?? 1e15) || a.id - b.id).map(x => this._lead(x));
-      const anrufe = this.d.akt.filter(a => a.von === k && a.typ === "anruf" && new Date(a.zeit) >= s).length;
-      return { termine, faellig, neue, anrufe };
+      const zaehl = typ => this.d.akt.filter(a => a.von === k && a.typ === typ && new Date(a.zeit) >= s).length;
+      return { termine, faellig, neue, anrufe: zaehl("anruf"), mails: zaehl("mail"), besuche: zaehl("besuch") };
     }
     async leads({ q = "", filter = "offen", produkt = null } = {}) {
       const k = this.k, inh = (this.d.team.find(t => t.kuerzel === k) || {}).rolle === "inhaber";

@@ -26,14 +26,16 @@
     neu: ["Neu", "accent"], nicht_erreicht: ["Nicht erreicht", ""], rueckruf: ["Rückruf", "warn"],
     info_angefragt: ["Infos angefragt", "accent"], interesse: ["Interesse", "ok"], termin: ["Termin", "ok"],
     angebot: ["Angebot", "warn"], gewonnen: ["Kunde", "ok"], kein_interesse: ["Kein Interesse", "bad"], kein_kontakt: ["Nicht erreichbar", "bad"],
-    vorgemerkt: ["Für später", "accent"],
+    vorgemerkt: ["Für später", "accent"], angeschrieben: ["Angeschrieben", "accent"],
   };
   const MAX_VERSUCHE = 5;
-  const SIGNATUR = ["INFINERO – KI-Infrastruktur für Unternehmen", "Closewitzer Straße 19 · 07743 Jena"];
+  const SIGNATUR = ["Websites · Google-Sichtbarkeit · KI-Infrastruktur für Unternehmen"];
   // Kontakt nach außen (Mails, Signatur, Terminlink) ist immer der Inhaber – Vertriebler erscheinen nicht öffentlich
   const tippName = id => ((S.partner || []).find(p => p.tippgeber_id === id) || {}).name || id;
   const aussen = () => (store.mode === "live" && S.team.find(t => t.rolle === "inhaber")) || { kuerzel: "INH", name: "Ziu Tonndorf", telefon: null, termin_link: null };
-  const signatur = ab => ["Viele Grüße", ab.name, "Inhaber", "", ...SIGNATUR, [ab.telefon ? "Tel. " + ab.telefon : "", "kontakt@infinero.de", "infinero.de"].filter(Boolean).join(" · ")].join("\n");
+  // Text-Signatur (Mail-App). Beim Senden über die App macht mailsenden daraus eine gestaltete Signatur im INFINERO-Look.
+  const signatur = ab => ["Viele Grüße", "", ab.name, "Inhaber · INFINERO", ...SIGNATUR, "",
+    ab.telefon ? "Tel. " + ab.telefon : "", "kontakt@infinero.de · infinero.de", "Closewitzer Straße 19 · 07743 Jena"].filter((x, i, a) => x !== "" || a[i - 1] !== "").join("\n");
   const MAILTEXT = {
     WEBSITE: ["moderne Website", "fürs Handy gemacht und so aufgebaut, dass man Sie findet – bei Google, auf Google Maps und in KI-Assistenten wie ChatGPT, mit Online-Terminanfrage", 1490, 99],
     WEBCHAT: ["Web-Chatbot", "beantwortet Fragen auf Ihrer Website rund um die Uhr", 690, 79],
@@ -62,6 +64,87 @@
   }
   const SATZ_V = 0.5, SATZ_T = 0.25;
   const ART = { vor_ort: "Vor Ort", telefon: "Telefon", video: "Video" };
+
+  // ---------------------------------------------------------------- Kanäle (Telefon · E-Mail · Vor Ort)
+  // Jeder zugeteilte Lead gehört zu einem Kanal (leads.kanal); „Heute“ zeigt je Kanal eine eigene Liste.
+  const KANAELE = [["telefon", "Telefon"], ["email", "E-Mail"], ["vor_ort", "Vor Ort"]];
+  const KANAL_TYP = { telefon: "anruf", email: "mail", vor_ort: "besuch" };   // Aktivitätstyp je Kanal (Statistik zählt nur „anruf“ als Anruf)
+  const KANAL_KEY = "infinero-kanal", VO_MAX = 2;                             // nach 2× nicht angetroffen → ans Telefon
+  const kanalVon = l => (l && l.kanal) || "telefon";
+  // E-Mails schreibt nur der Inhaber (Ziu) – Vertriebler sehen weder den E-Mail-Kanal noch Mail-Knöpfe
+  const mailErlaubt = () => !!(S.profil && S.profil.rolle === "inhaber");
+  const kanaele = () => KANAELE.filter(([k]) => k !== "email" || mailErlaubt());
+
+  // Nächster Schritt: feste Auswahl (+ eigener Text in den Details)
+  const SCHRITTE = ["Anrufen", "Rückruf", "Nochmal vorbeischauen", "Termin vereinbaren", "Infos per Mail schicken", "Demo bauen",
+    "Mit Demo vorbeigehen", "Angebot schicken", "Zusage einholen", "Website erstellen", "Nachfassen"];
+  function schrittWahl(l) {
+    const ist = l.naechster_schritt || "";
+    return `<label class="ns"><span>Nächster Schritt</span><select data-ns="${l.id}" aria-label="Nächster Schritt für ${esc(l.firma)}">
+      <option value="">– wählen –</option>${ist && !SCHRITTE.includes(ist) ? `<option selected>${esc(ist)}</option>` : ""}${SCHRITTE.map(x => `<option${x === ist ? " selected" : ""}>${esc(x)}</option>`).join("")}</select></label>`;
+  }
+
+  // Erstkontakt per Mail: freundlich-seriös, ehrlich, ohne Preise. Versand nur einzeln und von Hand aus der Mail-App.
+  const ERSTMAIL = {
+    gastro: { gruppe: "Restaurants und Cafés", lob: "Ihre Gäste bewerten Sie sehr gut",
+      warum: "Gerade beim Essengehen entscheiden Gäste oft spontan am Handy: Was gibt es, wann ist geöffnet, ist noch ein Tisch frei? Wer das nicht schnell findet, landet beim Nachbarn.",
+      website: "eine Website mit Speisekarte, Öffnungszeiten und Reservierungsanfrage, die auch auf dem Handy schnell lädt",
+      wer: "Ihr Restaurant", dinge: "neue Karte, Urlaub, Events", schluss: "" },
+    beauty: { gruppe: "Studios und Salons", lob: "Ihre Kundinnen bewerten Sie hervorragend",
+      warum: "Neue Kundinnen informieren sich zuerst online: Wie sieht das Studio aus, welche Behandlungen gibt es, kann ich direkt einen Termin anfragen? Instagram hilft – bei Google taucht man damit allein aber kaum auf.",
+      website: "eine Website mit Ihren Behandlungen, Bildern und Online-Terminanfrage, die auch auf dem Handy schnell lädt – Anfragen kommen auch dann rein, wenn Sie gerade bei einer Kundin sind",
+      wer: "Ihr Studio", dinge: "neue Behandlungen, Urlaub, Aktionen", schluss: "" },
+    handwerk: { gruppe: "Handwerksbetriebe", lob: "Ihre Kunden bewerten Sie sehr gut",
+      warum: "Wer heute einen Handwerker sucht, schaut zuerst online: Was macht der Betrieb, gibt es Referenzen, wie erreiche ich ihn? Wer dort überzeugt, bekommt den Anruf.",
+      website: "eine Website mit Ihren Leistungen, Referenzfotos und Anfrageformular, die auch auf dem Handy schnell lädt – Anfragen kommen auch rein, während Sie auf der Baustelle stehen",
+      wer: "Ihr Betrieb", dinge: "neue Projekte, Stellenanzeigen, Betriebsurlaub", schluss: " – dauert keine zehn Minuten, auch zwischen zwei Baustellen" },
+  };
+  ERSTMAIL.allgemein = { ...ERSTMAIL.handwerk, gruppe: "Betriebe", lob: "Ihre Kunden bewerten Sie sehr gut", wer: "Ihr Betrieb", dinge: "Öffnungszeiten, Urlaub, Neuigkeiten", schluss: "" };
+  function befundSatz(l) {
+    const b = String(l.website_befund || "");
+    if (!l.website || l.website_bewertung === "keine") return "Eine eigene Website habe ich allerdings nicht gefunden.";
+    if (l.website_bewertung === "veraltet") {
+      if (/Handy/.test(b)) return "Ihre Website lässt sich auf dem Handy allerdings nur schwer bedienen.";
+      if (/nicht erreichbar/.test(b)) return "Ihre Website war allerdings gerade nicht erreichbar.";
+      return "Ihre Website wirkt allerdings schon etwas in die Jahre gekommen.";
+    }
+    return "Bei Ihrem Online-Auftritt sehe ich allerdings noch einiges an Potenzial.";
+  }
+  // Demo-Link je Lead: mit ?d=<demo_code> meldet die Demo-Seite den Aufruf („schaut gerade die Demo an“).
+  // persoenlich = false für Links, die wir selbst öffnen (z. B. „Demo zeigen“ vor Ort).
+  const demoVon = (l, persoenlich = true) => {
+    const z = (S.zg || []).find(x => x.id === l.zielgruppe), url = (z && z.demo_url) || "https://infinero.de/demo";
+    return persoenlich && l.demo_code ? url + (url.includes("?") ? "&" : "?") + "d=" + l.demo_code : url;
+  };
+  const kalenderLink = () => aussen().termin_link || (S.cfg && S.cfg.termin_link);
+  function erstMail(l) {
+    const v = ERSTMAIL[l.zielgruppe] || ERSTMAIL.allgemein, ab = aussen(), link = kalenderLink();
+    const gut = +l.bewertung_google >= 4.3;
+    const text = [
+      anrede(l),
+      `beim Blick auf Google ist mir ${l.firma} aufgefallen${gut ? ` – ${v.lob}` : ""}. ${befundSatz(l)} ${v.warum}`,
+      `Mein Name ist ${ab.name}, mit INFINERO aus Jena betreue ich ${v.gruppe} in der Region rund um Website und Google-Auftritt. Wie das für einen Betrieb wie Ihren aussehen kann, sehen Sie hier:\n${demoVon(l)}`,
+      `Was Sie davon hätten:\n– ${v.website}\n– Sie werden bei Google, auf Google Maps und auch in ChatGPT & Co. gefunden\n– ich kümmere mich dauerhaft darum, dass ${v.wer} gesehen wird: Google-Eintrag, ${v.dinge} – eine kurze Nachricht an mich genügt, Sie haben damit keine Arbeit.`,
+      "Und bevor Sie jetzt schon den Taschenrechner zücken: Das Ganze ist deutlich günstiger, als die meisten vermuten.",
+      `Gern erstelle ich Ihnen vorab einen kostenlosen und unverbindlichen Entwurf für ${l.firma} – dann haben Sie etwas Konkretes vor Augen. Oder wir telefonieren kurz und sprechen in Ruhe darüber${v.schluss}.`,
+      link ? `Damit Sie wissen, wann ich Zeit habe, habe ich Ihnen hier meinen Kalender hinterlegt:\n${link}\nAlternativ antworten Sie einfach auf diese Mail.` : "Antworten Sie einfach kurz auf diese Mail, dann melde ich mich bei Ihnen.",
+      signatur(ab),
+      "PS: Falls das für Sie gerade kein Thema ist, genügt eine kurze Antwort – dann melde ich mich nicht wieder.",
+    ];
+    return { betreff: `${l.firma}: eine kurze Idee zu Ihrem Auftritt bei Google`, text: text.join("\n\n") };
+  }
+  function nachfassMail(l) {
+    const ab = aussen(), link = kalenderLink();
+    const text = [
+      anrede(l),
+      "ich wollte kurz nachhaken, ob meine Nachricht von letzter Woche angekommen ist – im Tagesgeschäft geht so etwas ja schnell unter.",
+      `Hier noch einmal das Beispiel:\n${demoVon(l)}`,
+      `Mein Angebot steht: Ich erstelle Ihnen gern einen kostenlosen Entwurf für ${l.firma}. Oder ich rufe Sie in den nächsten Tagen kurz an.${link ? ` Wenn Sie lieber selbst einen Zeitpunkt wählen:\n${link}` : ""}`,
+      "Falls es kein Thema ist, genügt eine kurze Antwort – dann bin ich raus.",
+      signatur(ab),
+    ];
+    return { betreff: "Re: " + erstMail(l).betreff, text: text.join("\n\n") };
+  }
 
   // ---------------------------------------------------------------- Motivation
   const SPRUECHE = [
@@ -208,9 +291,10 @@
     return `<article class="card${opts.prio ? " prio" : ""}" data-card="${l.id}">
       <div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3>${l.status !== "neu" ? `<span class="pill ${st[1]}">${st[0]}</span>` : web}</div>
       <div class="meta">${l.tippgeber ? `<span class="pill ok">Empfehlung: ${esc(tippName(l.tippgeber))}</span>` : (l.quelle || "").startsWith("Website:") ? `<span class="pill accent">Website-Anfrage</span>` : ""}${l.branche ? `<span>${esc(l.branche)}</span>` : ""}${l.ort ? `<span>${esc(l.ort)}</span>` : ""}${l.versuche ? `<span>Versuch ${l.versuche + 1}</span>` : ""}${wv ? `<span class="${wv < new Date() ? "due" : ""}">${istHeute(l.wiedervorlage) ? "heute " + hhmm(wv) : dDE(l.wiedervorlage) + " " + hhmm(wv)}</span>` : ""}${l.status !== "neu" ? web : ""}</div>
-      ${l.naechster_schritt ? `<div class="meta"><span>${esc(l.naechster_schritt)}</span></div>` : ""}
+      ${schrittWahl(l)}
+      ${l.demo_gesehen_am ? `<div class="meta">${demoGesehen(l)}</div>` : ""}
       ${l.website_befund && ["veraltet", "unklar"].includes(l.website_bewertung) ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}
-      ${(() => { const z = (S.zg || []).find(x => x.id === l.zielgruppe); return z && z.demo_url ? `<div class="demo"><span>Demo ${esc(z.name)}:</span> <a href="${esc(z.demo_url)}" target="_blank" rel="noopener">${esc(z.demo_url.replace(/^https?:\/\//, ""))}</a> <button class="btn small" type="button" data-copy="${esc(z.demo_url)}">Link kopieren</button></div>` : ""; })()}
+      ${(() => { const z = (S.zg || []).find(x => x.id === l.zielgruppe); return z && z.demo_url ? `<div class="demo"><span>Demo ${esc(z.name)}:</span> <a href="${esc(z.demo_url)}" target="_blank" rel="noopener">${esc(z.demo_url.replace(/^https?:\/\//, ""))}</a> <button class="btn small" type="button" data-copy="${esc(demoVon(l))}">Link kopieren</button></div>` : ""; })()}
       ${l.telefon ? `<div class="call"><a class="tel" href="${esc(telHref(l.telefon))}"><svg viewBox="0 0 24 24">${ICON.tel}</svg>${esc(l.telefon)}</a>${l.website ? webLink(l.website) : ""}${mapsLink(l)}</div>` : `<div class="meta"><span class="due">Keine Telefonnummer</span>${l.email ? `<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>` : ""}${l.website ? webLink(l.website) : ""}</div>`}
       <div class="outcomes">
         <button class="oc n" type="button" data-oc="nicht" data-id="${l.id}">Nicht erreicht</button>
@@ -231,29 +315,37 @@
         <button class="btn small" type="button" data-terminok="${t.id}">Erledigt</button></div>
     </article>`;
   }
+  const kanal = () => { if (!S.kanal || !kanaele().some(k => k[0] === S.kanal)) { const g = lsGet(KANAL_KEY); S.kanal = kanaele().some(k => k[0] === g) ? g : "telefon"; } return S.kanal; };
   async function viewHeute() {
     if (!S.data.startGeladen && eigeneAnsicht() || !S.data.startGeladen && store.mode === "demo") { S.data.startGeladen = true; try { const n = await store.tageslisteStart(); if (n) toast(`${n} neue Leads für heute zugeteilt`); } catch (e) { console.warn(e); } }
     const h = await store.heute(); S.data.heute = h;
+    const k = kanal(), imKanal = l => kanalVon(l) === k;
+    const anzahl = kk => h.faellig.filter(l => kanalVon(l) === kk).length + h.neue.filter(l => kanalVon(l) === kk).length;
+    const umschalter = `<div class="seg kanal" role="group" aria-label="Kanal wählen">${kanaele().map(([id, t]) => `<button type="button" data-kanal="${id}" aria-pressed="${k === id}">${t}${anzahl(id) ? `<small>${anzahl(id)}</small>` : ""}</button>`).join("")}</div>`;
+    const faellig = h.faellig.filter(imKanal), neue = h.neue.filter(imKanal);
+    const termine = `<h2 class="sec">Termine heute <span class="n">${h.termine.length}</span></h2>
+      <div class="list">${h.termine.length ? h.termine.map(terminCard).join("") : `<div class="empty">Heute keine Termine.</div>`}</div>`;
+    if (k === "email") return umschalter + viewMail(h, faellig, neue, termine);
+    if (k === "vor_ort") return umschalter + viewVorOrt(h, faellig, neue, termine);
     const ziel = S.view.tagesziel ?? 100;
     S.data.anrufeHeute = h.anrufe || 0; const heuteAnrufe = S.data.anrufeHeute;
     const fokus = (S.zg || []).find(z => z.id === (new Date().getDay() === 1 ? "handwerk" : (S.cfg || {}).fokus));
     const zielAnrufe = S.view.rolle === "inhaber" ? 0 : 100;
-    return `
+    return umschalter + `
       <div class="spruch"><span class="lbl">Spruch des Tages</span><p>${esc(spruchDesTages())}</p></div>
       ${fokus ? `<div class="fokus"><span>${new Date().getDay() === 1 ? "Montag" : "Diese Woche"}:</span> <b>${esc(fokus.name)}</b>${fokus.anrufzeit ? `<span class="meta">${esc(fokus.anrufzeit)}</span>` : ""}</div>` : ""}
       ${zielAnrufe ? `<div class="ziel"><div class="kv"><span>Anrufe heute</span><b class="money"><span id="kpiCalls">${heuteAnrufe}</span> / ${zielAnrufe}</b></div><div class="bar"><i id="zielbar" style="width:${Math.min(100, heuteAnrufe / zielAnrufe * 100)}%"></i></div></div>` : ""}
-      <div class="kpis"><div><span>Termine</span><b>${h.termine.length}</b></div><div><span>Wiedervorlagen</span><b>${h.faellig.length}</b></div><div><span>Neue Leads</span><b>${h.neue.length}</b></div><div><span>${zielAnrufe ? "Noch offen" : "Anrufe heute"}</span><b>${zielAnrufe ? Math.max(0, zielAnrufe - heuteAnrufe) : heuteAnrufe}</b></div></div>
-      <h2 class="sec">Termine heute <span class="n">${h.termine.length}</span></h2>
-      <div class="list">${h.termine.length ? h.termine.map(terminCard).join("") : `<div class="empty">Heute keine Termine.</div>`}</div>
-      <h2 class="sec">Wiedervorlagen &amp; Rückrufe <span class="n">${h.faellig.length}</span></h2>
-      <div class="list" id="listFaellig">${h.faellig.length ? h.faellig.map(l => callCard(l, { prio: true })).join("") : `<div class="empty">Nichts fällig.</div>`}</div>
-      <h2 class="sec">Neue Leads <span class="n">${h.neue.length}${ziel ? " · Tagesziel " + ziel : ""}</span></h2>
+      <div class="kpis"><div><span>Termine</span><b>${h.termine.length}</b></div><div><span>Wiedervorlagen</span><b>${faellig.length}</b></div><div><span>Neue Leads</span><b>${neue.length}</b></div><div><span>${zielAnrufe ? "Noch offen" : "Anrufe heute"}</span><b>${zielAnrufe ? Math.max(0, zielAnrufe - heuteAnrufe) : heuteAnrufe}</b></div></div>
+      ${termine}
+      <h2 class="sec">Wiedervorlagen &amp; Rückrufe <span class="n">${faellig.length}</span></h2>
+      <div class="list" id="listFaellig">${faellig.length ? faellig.map(l => callCard(l, { prio: true })).join("") : `<div class="empty">Nichts fällig.</div>`}</div>
+      <h2 class="sec">Neue Leads <span class="n">${neue.length}${ziel ? " · Tagesziel " + ziel : ""}</span></h2>
       ${(() => { // Filter nach Zielgruppe, sobald mehrere in der Liste sind (z. B. nach „Leads laden“ für einen Beauty-Block)
-        const da = (S.zg || []).filter(z => h.neue.some(l => l.zielgruppe === z.id));
+        const da = (S.zg || []).filter(z => neue.some(l => l.zielgruppe === z.id));
         if (da.length < 2) { S.neuFilter = null; return ""; }
         if (S.neuFilter && !da.some(z => z.id === S.neuFilter)) S.neuFilter = null;
-        return `<div class="chips scroll" style="margin-bottom:8px"><button class="chip" type="button" data-neufilter="" aria-pressed="${!S.neuFilter}">Alle ${h.neue.length}</button>${da.map(z => `<button class="chip" type="button" data-neufilter="${z.id}" aria-pressed="${S.neuFilter === z.id}">${esc(z.name)} ${h.neue.filter(l => l.zielgruppe === z.id).length}</button>`).join("")}</div>`; })()}
-      ${(() => { const liste = S.neuFilter ? h.neue.filter(l => l.zielgruppe === S.neuFilter) : h.neue;
+        return `<div class="chips scroll" style="margin-bottom:8px"><button class="chip" type="button" data-neufilter="" aria-pressed="${!S.neuFilter}">Alle ${neue.length}</button>${da.map(z => `<button class="chip" type="button" data-neufilter="${z.id}" aria-pressed="${S.neuFilter === z.id}">${esc(z.name)} ${neue.filter(l => l.zielgruppe === z.id).length}</button>`).join("")}</div>`; })()}
+      ${(() => { const liste = S.neuFilter ? neue.filter(l => l.zielgruppe === S.neuFilter) : neue;
         return `<div class="list" id="listNeu">${liste.length ? liste.map(l => callCard(l)).join("") : `<div class="empty">Keine neuen Leads mehr in deiner Liste.</div>`}</div>`; })()}
       <button class="btn block more" type="button" id="more">+ Leads laden</button>
       <p class="hint">Nicht bearbeitete Leads bleiben in deiner Liste und stehen morgen wieder hier.</p>`;
@@ -261,9 +353,213 @@
 
   const schritt = () => (inhaber() ? 10 : 20);
 
+  // „Schaut gerade die Demo an“: Hinweis auf der Karte, sobald der persönliche Demo-Link geöffnet wurde
+  const demoGesehen = l => l.demo_gesehen_am ? `<span class="pill ok">👀 Demo angesehen ${istHeute(l.demo_gesehen_am) ? "heute " + hhmm(new Date(l.demo_gesehen_am)) : dDE(l.demo_gesehen_am)}${l.demo_aufrufe > 1 ? ` · ${l.demo_aufrufe}×` : ""}</span>` : "";
+
+  // ---------------------------------------------------------------- Kanal E-Mail
+  function mailCard(l, opts = {}) {
+    const wb = !l.website ? WEB.keine : WEB[l.website_bewertung];
+    const wv = l.wiedervorlage ? new Date(l.wiedervorlage) : null, nach = l.status === "angeschrieben";
+    return `<article class="card${opts.prio ? " prio" : ""}" data-card="${l.id}">
+      <div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3>${nach ? `<span class="pill accent">Angeschrieben</span>` : wb ? `<span class="pill ${wb[1]}">${wb[0]}</span>` : ""}</div>
+      <div class="meta">${l.branche ? `<span>${esc(l.branche)}</span>` : ""}${l.ort ? `<span>${esc(l.ort)}</span>` : ""}${l.bewertung_google ? `<span>★ ${esc(String(l.bewertung_google).replace(".", ","))}${l.bewertungen ? ` (${l.bewertungen})` : ""}</span>` : ""}${wv ? `<span class="${wv < new Date() ? "due" : ""}">${istHeute(l.wiedervorlage) ? "heute" : dDE(l.wiedervorlage)}</span>` : ""}</div>
+      ${schrittWahl(l)}
+      ${l.demo_gesehen_am ? `<div class="meta">${demoGesehen(l)}</div>` : ""}
+      ${l.website_befund && l.website_bewertung === "veraltet" ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}
+      <div class="call"><span class="mailadr">✉️ ${esc(l.email || "keine Adresse")}</span>${l.website ? webLink(l.website) : ""}${mapsLink(l)}</div>
+      ${nach ? `<div class="outcomes">
+        <button class="oc k" type="button" data-oc="kein" data-id="${l.id}">Kein Interesse</button>
+        <button class="oc n" type="button" data-zutelefon="${l.id}">Anrufen</button>
+        <button class="oc i" type="button" data-erstmail="${l.id}" data-art="nachfass">Nachfass-Mail</button>
+        <button class="oc y" type="button" data-oc="ja" data-id="${l.id}">Antwort: Interesse</button></div>`
+      : `<div class="outcomes drei">
+        <button class="oc n" type="button" data-zutelefon="${l.id}">Lieber anrufen</button>
+        <button class="oc k" type="button" data-spaeter="${l.id}">Passt nicht</button>
+        <button class="oc y" type="button" data-erstmail="${l.id}">Mail schreiben</button></div>`}
+      <div class="sub"><button type="button" data-open="${l.id}">Details</button></div>
+    </article>`;
+  }
+  function viewMail(h, faellig, neue, termine) {
+    return `
+      <div class="kpis"><div><span>Mails heute</span><b>${h.mails || 0}</b></div><div><span>Nachfassen</span><b>${faellig.length}</b></div><div><span>Neu</span><b>${neue.length}</b></div><div><span>Termine</span><b>${h.termine.length}</b></div></div>
+      <p class="hint kanalhint">Erstkontakt per Mail: <b>einzeln und von Hand</b> aus deiner Mail-App, Absender <b>kontakt@infinero.de</b>. Wer abwinkt → „Kein Interesse“, dann wird der Betrieb nie wieder kontaktiert.</p>
+      ${termine}
+      <h2 class="sec">Nachfassen <span class="n">${faellig.length}</span></h2>
+      <div class="list">${faellig.length ? faellig.map(l => mailCard(l, { prio: true })).join("") : `<div class="empty">Nichts fällig.</div>`}</div>
+      <h2 class="sec">Neu anschreiben <span class="n">${neue.length}</span></h2>
+      <div class="list">${neue.length ? neue.map(l => mailCard(l)).join("") : `<div class="empty">Keine E-Mail-Leads in deiner Liste.</div>`}</div>
+      <button class="btn block more" type="button" data-kanalladen="email">+ E-Mail-Leads laden</button>
+      <p class="hint">Nach der ersten Mail kommt der Betrieb nach 4 Werktagen wieder: Antwort da? Sonst Nachfass-Mail – danach geht er automatisch ans Telefon.</p>`;
+  }
+  async function erstMailSheet(id, art = "erst") {
+    let l; try { l = await store.lead(id); } catch (e) { return fehler(e); }
+    const m = art === "nachfass" ? nachfassMail(l) : erstMail(l);
+    const root = sheet((art === "nachfass" ? "Nachfass-Mail · " : "Erste Mail · ") + l.firma, `
+      <form class="form">
+        <div class="field full"><label for="em_sp">Was soll Claude beachten? <small>(Stichpunkte, optional)</small></label>
+          <textarea id="em_sp" rows="2" placeholder="z. B. Inhaberin heißt Frau Weber, viele Fotos auf Instagram, Website ist ein alter Baukasten"></textarea></div>
+        <div class="full actions"><button class="btn" type="button" id="em_ki">✨ Mit Claude neu schreiben</button></div>
+        <p class="hint full" id="em_ki_hint">Unten steht die Standard-Vorlage. Claude schreibt sie auf Wunsch persönlicher – passend zum Betrieb.</p>
+        <div class="field full"><label for="em_an">An</label><input id="em_an" type="email" value="${esc(l.email)}"></div>
+        <div class="field full"><label for="em_b">Betreff</label><input id="em_b" value="${esc(m.betreff)}"></div>
+        <div class="field full"><label for="em_t">Text</label><textarea id="em_t" rows="22">${esc(m.text)}</textarea></div>
+        <div class="full actions" id="em_direkt" hidden><button class="btn primary" type="button" id="em_send">Gestaltet senden</button></div>
+        <p class="hint full" id="em_direkt_hint" hidden>Geht als gestaltete Mail im INFINERO-Look (Logo, Buttons, Signatur) von <b>kontakt@infinero.de</b> raus – Antworten und eine Kopie landen im Postfach kontakt@.</p>
+        <div class="full actions"><a class="btn" id="em_open" href="#">In Mail-App öffnen (nur Text)</a><button class="btn" type="button" id="em_copy">Text kopieren</button><button class="btn" type="button" id="em_ok">Gesendet ✓</button></div>
+        <p class="hint full">Mail-App: Absender <b>kontakt@infinero.de</b> wählen und danach hier „Gesendet ✓“ tippen.</p>
+      </form>`);
+    const q = x => root.querySelector(x);
+    const aktualisieren = () => { q("#em_open").href = mailtoVon(q("#em_an").value.trim(), q("#em_b").value, q("#em_t").value); };
+    ["#em_an", "#em_b", "#em_t"].forEach(x => q(x).addEventListener("input", aktualisieren)); aktualisieren();
+    q("#em_copy").addEventListener("click", async () => { try { await navigator.clipboard.writeText(q("#em_t").value); toast("Text kopiert"); } catch (err) { toast("Kopieren ging nicht – Text bitte markieren"); } });
+    store.mailBereit().then(ok => { if (ok) { q("#em_direkt").hidden = false; q("#em_direkt_hint").hidden = false; } else q("#em_open").classList.add("primary"); });
+    let laeuft = false;
+    q("#em_ki").addEventListener("click", async () => {
+      if (laeuft) return; laeuft = true; const b = q("#em_ki"); b.disabled = true;
+      q("#em_ki_hint").textContent = "✨ Claude schreibt die Mail … (dauert ein paar Sekunden)";
+      try {
+        const r = await Promise.race([store.kiMail(l.id, q("#em_sp").value.trim(), art), new Promise((_, x) => setTimeout(() => x(new Error("Zeitüberschreitung")), 60000))]);
+        if (r.betreff && r.text) { q("#em_b").value = r.betreff; q("#em_t").value = r.text; aktualisieren(); q("#em_ki_hint").textContent = "✨ Von Claude geschrieben – kurz drüberlesen. Nicht zufrieden? Stichpunkte ergänzen und neu schreiben."; }
+        else q("#em_ki_hint").textContent = "Claude hat gerade nicht geliefert (" + (r.grund || "keine Antwort") + ") – die Vorlage unten kann so raus.";
+      } catch (e) { q("#em_ki_hint").textContent = "Claude gerade nicht erreichbar – die Vorlage unten kann so raus."; }
+      b.disabled = false; laeuft = false;
+    });
+    const gesendet = async (an, ueberApp) => {
+      const patch = art === "nachfass"
+        ? { kanal: "telefon", wiedervorlage: naechsterWerktag(3, 10).toISOString(), naechster_schritt: "2 Mails ohne Antwort – kurz anrufen" }
+        : { status: "angeschrieben", wiedervorlage: naechsterWerktag(4, 10).toISOString(), naechster_schritt: "Antwort da? Sonst Nachfass-Mail" };
+      if (an && an !== l.email) patch.email = an;
+      aus(id); await ergebnis(id, "angeschrieben", patch, (art === "nachfass" ? "Nachfass-Mail gesendet" : "Erste Mail gesendet") + (ueberApp ? " (gestaltet, über die App)" : ""));
+      schliessen(); toast(art === "nachfass" ? "Gesendet – in 3 Werktagen steht der Betrieb beim Telefon" : "Gesendet – in 4 Werktagen wieder hier");
+    };
+    q("#em_ok").addEventListener("click", async () => { try { await gesendet(q("#em_an").value.trim(), false); } catch (err) { fehler(err); } });
+    q("#em_send").addEventListener("click", async e => {
+      const an = q("#em_an").value.trim(), b = e.currentTarget;
+      if (!an) return toast("Bitte Empfänger eintragen");
+      if (!confirm(`Mail jetzt an ${an} senden?`)) return;
+      b.disabled = true; b.textContent = "Wird gesendet …";
+      try { await store.mailSenden({ lead_id: l.id, an, betreff: q("#em_b").value, text: q("#em_t").value, art }); await gesendet(an, true); }
+      catch (err) { b.disabled = false; b.textContent = "Gestaltet senden"; toast("Nicht gesendet: " + err.message); }
+    });
+  }
+  async function zuTelefon(id) {
+    const l = findLead(id) || {};
+    const patch = { kanal: "telefon" };
+    if (l.status !== "neu") Object.assign(patch, { wiedervorlage: new Date().toISOString(), naechster_schritt: l.status === "angeschrieben" ? "Mail ohne Antwort – kurz anrufen" : l.naechster_schritt || null });
+    try { await store.leadUpdate(id, patch); await store.aktivitaet({ lead_id: id, typ: "notiz", text: "An Telefon übergeben" }); toast(l.status === "neu" ? "Liegt jetzt bei Telefon → Neue Leads" : "Liegt jetzt bei Telefon → Wiedervorlagen"); zeige(); }
+    catch (err) { fehler(err); }
+  }
+
+  // ---------------------------------------------------------------- Kanal Vor Ort
+  const adresse = l => [l.strasse, [l.plz, l.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const wegHref = l => `https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${encodeURIComponent([l.firma, adresse(l)].join(", "))}` + (l.place_id ? `&destination_place_id=${encodeURIComponent(l.place_id)}` : "");
+  // Laufweg: vom ersten Betrieb (dem Markt am nächsten) immer zum nächstgelegenen – ohne Koordinaten hinten nach PLZ/Straße
+  // je Stadt getrennt, Städte in der geladenen Reihenfolge (Jena zuerst)
+  function laufweg(liste) {
+    const orte = [...new Set(liste.map(l => l.ort || ""))];
+    return orte.flatMap(o => laufwegStadt(liste.filter(l => (l.ort || "") === o)));
+  }
+  function laufwegStadt(liste) {
+    const mit = liste.filter(l => l.lat != null), ohne = liste.filter(l => l.lat == null);
+    const d = (a, b) => (a.lat - b.lat) ** 2 + ((a.lng - b.lng) * Math.cos(a.lat * Math.PI / 180)) ** 2;
+    const weg = [], rest = [...mit];
+    let akt = rest.shift(); if (akt) weg.push(akt);
+    while (rest.length) { let bi = 0; rest.forEach((l, i) => { if (d(akt, l) < d(akt, rest[bi])) bi = i; }); akt = rest.splice(bi, 1)[0]; weg.push(akt); }
+    return [...weg, ...ohne.sort((a, b) => String(a.plz).localeCompare(String(b.plz)) || String(a.strasse).localeCompare(String(b.strasse), "de", { numeric: true }))];
+  }
+  // Google Maps kann bis zu 10 Stopps je Route → längere Listen in Etappen; jede Etappe startet am Ende der vorigen
+  const punkt = l => l.lat != null ? `${l.lat},${l.lng}` : adresse(l);
+  function routen(liste) {
+    const out = []; let nr = 0;
+    for (const o of [...new Set(liste.map(l => l.ort || ""))]) {
+    const stopps = liste.filter(l => (l.ort || "") === o && (l.lat != null || adresse(l)));
+    for (let i = 0; i < stopps.length; i += 10) {
+      const teil = stopps.slice(i, i + 10), start = i ? stopps[i - 1] : null, ende = teil[teil.length - 1], mitte = teil.slice(0, -1);
+      out.push({ ort: o, von: nr + i + 1, bis: nr + i + teil.length, href: "https://www.google.com/maps/dir/?api=1&travelmode=walking"
+        + (start ? `&origin=${encodeURIComponent(punkt(start))}` : "") + `&destination=${encodeURIComponent(punkt(ende))}`
+        + (mitte.length ? `&waypoints=${encodeURIComponent(mitte.map(punkt).join("|"))}` : "") });
+    }
+    nr += stopps.length;
+    }
+    return out;
+  }
+  function vorOrtCard(l, opts = {}) {
+    const wb = !l.website ? WEB.keine : WEB[l.website_bewertung];
+    const wv = l.wiedervorlage ? new Date(l.wiedervorlage) : null;
+    const st = STATUS[l.status] || [l.status, ""];
+    return `<article class="card${opts.prio ? " prio" : ""}" data-card="${l.id}">
+      <div class="head"><h3>${opts.nr ? `<span class="stopp">${opts.nr}</span>` : ""}<button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3>${l.status !== "neu" ? `<span class="pill ${st[1]}">${st[0]}</span>` : wb ? `<span class="pill ${wb[1]}">${wb[0]}</span>` : ""}</div>
+      <a class="adresse" href="${esc(wegHref(l))}" target="_blank" rel="noopener">📍 ${esc(adresse(l) || "Adresse fehlt")}</a>
+      <div class="meta">${l.branche ? `<span>${esc(l.branche)}</span>` : ""}${l.bewertung_google ? `<span>★ ${esc(String(l.bewertung_google).replace(".", ","))}${l.bewertungen ? ` (${l.bewertungen})` : ""}</span>` : ""}${l.versuche ? `<span>Besuch ${l.versuche + 1}</span>` : ""}${wv ? `<span class="${wv < new Date() ? "due" : ""}">${istHeute(l.wiedervorlage) ? "heute" : dDE(l.wiedervorlage)}</span>` : ""}</div>
+      ${schrittWahl(l)}
+      ${l.demo_gesehen_am ? `<div class="meta">${demoGesehen(l)}</div>` : ""}
+      ${l.website_befund && l.website_bewertung === "veraltet" ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}
+      <div class="call"><a class="btn small primary" href="${esc(demoVon(l, false))}" target="_blank" rel="noopener">Demo zeigen</a>${l.demo_website ? `<span class="pill ${l.demo_website === "fertig" ? "ok" : "warn"}">Eigene Demo: ${esc(l.demo_website.replace("_", " "))}</span>` : ""}${l.website ? webLink(l.website) : ""}${l.telefon ? `<a href="${esc(telHref(l.telefon))}">${esc(l.telefon)}</a>` : ""}</div>
+      <div class="outcomes">
+        <button class="oc n" type="button" data-oc="weg" data-id="${l.id}">Nicht angetroffen</button>
+        <button class="oc k" type="button" data-oc="kein" data-id="${l.id}">Kein Interesse</button>
+        <button class="oc i" type="button" data-demoinfo="${l.id}">${l.demo_website ? "Demo-Infos" : "Vorab-Demo"}</button>
+        <button class="oc y" type="button" data-oc="ja" data-id="${l.id}">Interesse</button>
+      </div>
+      <div class="sub"><button type="button" data-zusage="${l.id}">Zusage!</button><button type="button" data-oc="rueckruf" data-id="${l.id}">Rückruf</button><button type="button" data-spaeter="${l.id}">Website gut → später</button><button type="button" data-open="${l.id}">Details</button></div>
+    </article>`;
+  }
+  function viewVorOrt(h, faellig, neue, termine) {
+    const orte = [...new Set(neue.map(l => l.ort).filter(Boolean))];
+    if (S.voOrt && !orte.includes(S.voOrt)) S.voOrt = null;
+    const liste = laufweg(S.voOrt ? neue.filter(l => l.ort === S.voOrt) : neue);
+    const etappen = routen(liste);
+    return `
+      <div class="kpis"><div><span>Besuche heute</span><b>${h.besuche || 0}</b></div><div><span>Wieder hin</span><b>${faellig.length}</b></div><div><span>Offen</span><b>${neue.length}</b></div><div><span>Termine</span><b>${h.termine.length}</b></div></div>
+      ${termine}
+      <h2 class="sec">Nochmal vorbeischauen <span class="n">${faellig.length}</span></h2>
+      <div class="list">${faellig.length ? faellig.map(l => vorOrtCard(l, { prio: true })).join("") : `<div class="empty">Nichts fällig.</div>`}</div>
+      <h2 class="sec">Heute ansteuern <span class="n">${neue.length}</span></h2>
+      ${orte.length > 1 ? `<div class="chips scroll" style="margin-bottom:8px"><button class="chip" type="button" data-voort="" aria-pressed="${!S.voOrt}">Alle ${neue.length}</button>${orte.map(o => `<button class="chip" type="button" data-voort="${esc(o)}" aria-pressed="${S.voOrt === o}">${esc(o)} ${neue.filter(l => l.ort === o).length}</button>`).join("")}</div>` : ""}
+      ${etappen.length ? `<div class="actions routen" style="margin-bottom:8px">${etappen.map((e, i) => `<a class="btn small${i ? "" : " primary"}" href="${esc(e.href)}" target="_blank" rel="noopener">${etappen.length > 1 ? `Route ${i + 1}${new Set(etappen.map(x => x.ort)).size > 1 ? " " + esc(e.ort) : ""}: Stopp ${e.von}–${e.bis}` : `Laufroute in Google Maps (${e.bis} Stopps)`}</a>`).join("")}</div>` : ""}
+      <div class="list">${liste.length ? liste.map((l, i) => vorOrtCard(l, { nr: i + 1 })).join("") : `<div class="empty">Keine Vor-Ort-Leads in deiner Liste.</div>`}</div>
+      <button class="btn block more" type="button" data-kanalladen="vor_ort">+ Vor-Ort-Leads laden</button>
+      <p class="hint">Hier landen nur Betriebe <b>in der Innenstadt</b> (zu Fuß erreichbar) <b>ohne Website oder mit klar veralteter Seite</b> – Jena zuerst, dann Weimar, Erfurt, Gera, Leipzig. Die Liste ist als Laufweg sortiert, die Nummern passen zur Route. Nach ${VO_MAX}× nicht angetroffen geht der Betrieb ans Telefon.</p>`;
+  }
+  async function kanalLadenSheet(k) {
+    let pool = {}; try { pool = await store.poolKanal() || {}; } catch (e) { console.warn(e); }
+    const zgs = S.zg || [], vo = k === "vor_ort";
+    let zg = null, ort = vo ? ((pool.vor_ort || [])[0] || {}).ort || null : null, anzahl = vo ? 10 : 20;
+    const zahlZg = id => vo ? (pool.vor_ort || []).filter(x => (!id || x.zielgruppe === id)).reduce((a, x) => a + x.n, 0)
+                            : id ? (pool.email || {})[id] || 0 : Object.values(pool.email || {}).reduce((a, n) => a + n, 0);
+    const orteHTML = () => { const m = {}; (pool.vor_ort || []).filter(x => !zg || x.zielgruppe === zg).forEach(x => { m[x.ort] = (m[x.ort] || 0) + x.n; });
+      const liste = Object.entries(m); if (ort && !m[ort]) ort = liste.length ? liste[0][0] : null;   // Reihenfolge kommt aus der Datenbank: Jena zuerst
+      return liste.length ? liste.map(([o, n]) => `<button class="chip" type="button" data-ort="${esc(o)}" aria-pressed="${ort === o}">${esc(o)} <small>(${n})</small></button>`).join("")
+        : `<span class="hint">Gerade keine passenden Betriebe im Pool.</span>`; };
+    const root = sheet(vo ? "Vor-Ort-Leads laden" : "E-Mail-Leads laden", `
+      <div class="lbl">Zielgruppe</div>
+      <div class="chips" id="kl_zg"><button class="chip" type="button" data-zg="" aria-pressed="true">Alle <small>(${zahlZg(null)})</small></button>${zgs.map(z => `<button class="chip" type="button" data-zg="${z.id}" aria-pressed="false">${esc(z.name)} <small>(${zahlZg(z.id)})</small></button>`).join("")}</div>
+      ${vo ? `<div class="lbl" style="margin-top:14px">Innenstadt</div><div class="chips" id="kl_ort">${orteHTML()}</div>` : ""}
+      <div class="lbl" style="margin-top:14px">Wie viele?</div>
+      <div class="chips">${(vo ? [10, 20, 30] : [10, 20, 50]).map(n => `<button class="chip" type="button" data-n="${n}" aria-pressed="${n === anzahl}">${n}</button>`).join("")}</div>
+      <div class="actions"><button class="btn primary block" type="button" id="kl_go">Laden</button></div>
+      <p class="hint">${vo ? `Nur Betriebe in der Innenstadt (zu Fuß erreichbar) ohne Website oder mit klar veralteter Seite – vom Markt aus nach außen.${pool.geo_offen ? ` Bei ${pool.geo_offen} Betrieben wird die Lage gerade noch ermittelt.` : ""}`
+        : `Nur Betriebe mit E-Mail-Adresse und ohne moderne Website. Die Adressen sucht die App automatisch auf Website und Impressum${pool.mail_suche ? ` – bei ${pool.mail_suche} Betrieben läuft die Suche noch` : ""}.`}</p>`);
+    root.addEventListener("click", async e => {
+      const b = e.target.closest("button"); if (!b || b.disabled) return;
+      if ("zg" in b.dataset) { zg = b.dataset.zg || null; root.querySelectorAll("[data-zg]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); if (vo) root.querySelector("#kl_ort").innerHTML = orteHTML(); }
+      if ("ort" in b.dataset) { ort = b.dataset.ort || null; root.querySelectorAll("[data-ort]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); }
+      if (b.dataset.n) { anzahl = +b.dataset.n; root.querySelectorAll("[data-n]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); }
+      if (b.id === "kl_go") {
+        b.disabled = true;
+        try {
+          const n = await store.kanalLaden(k, anzahl, zg, ort);
+          if (n) { if (vo) S.voOrt = ort; toast(`${n} ${vo ? "Vor-Ort" : "E-Mail"}-Leads geladen`); } else toast("Gerade nichts Passendes frei – Nachschub kommt über Nacht.");
+          schliessen(false); await zeige();
+        } catch (err) { fehler(err); b.disabled = false; }
+      }
+    });
+  }
+
   // ---------------------------------------------------------------- Anruf-Ergebnisse
   function aus(id) {
     const c = document.querySelector(`[data-card="${id}"]`); if (c) { c.classList.add("weg"); setTimeout(() => c.remove(), 220); }
+    if (kanalVon(findLead(id)) !== "telefon") return;   // Mails und Besuche zählen nicht als Anrufe
     const n = S.data.anrufeHeute = (S.data.anrufeHeute || 0) + 1;
     const k = $("#kpiCalls"); if (k) k.textContent = n;
     const bar = $("#zielbar"); if (bar) bar.style.width = Math.min(100, n) + "%";
@@ -277,23 +573,29 @@
     const alt = findLead(id) || {};
     const vorher = {}; Object.keys(patch).forEach(k => (vorher[k] = alt[k] ?? null));
     await store.leadUpdate(id, { ...patch, letzter_kontakt: new Date().toISOString() });
-    await store.aktivitaet({ lead_id: id, typ: "anruf", ergebnis: typ, text: text || null });
+    await store.aktivitaet({ lead_id: id, typ: KANAL_TYP[kanalVon(alt)] || "anruf", ergebnis: typ, text: text || null });
     return vorher;
   }
   async function schnell(id, art) {
     const l = findLead(id); if (!l) return;
     let patch, text, label;
-    if (art === "nicht") {
+    if (art === "weg") {
+      const v = (l.versuche || 0) + 1;
+      patch = v >= VO_MAX ? { status: "nicht_erreicht", versuche: v, kanal: "telefon", wiedervorlage: naechsterWerktag(1, 9).toISOString(), naechster_schritt: `${v}× vor Ort nicht angetroffen – anrufen` }
+        : { status: "nicht_erreicht", versuche: v, wiedervorlage: naechsterWerktag(1, 10).toISOString(), naechster_schritt: "Nochmal vorbeischauen" };
+      text = "Vor Ort nicht angetroffen";
+      label = v >= VO_MAX ? `${v}× nicht angetroffen – liegt jetzt bei Telefon` : "Nicht angetroffen – steht morgen wieder hier";
+    } else if (art === "nicht") {
       const v = (l.versuche || 0) + 1;
       patch = v >= MAX_VERSUCHE ? { status: "kein_kontakt", versuche: v, wiedervorlage: null } : { status: "nicht_erreicht", versuche: v, wiedervorlage: naechsterWerktag(1, 9).toISOString() };
       label = v >= MAX_VERSUCHE ? `Nach ${v} Versuchen abgelegt` : "Nicht erreicht – morgen wieder dran";
     } else {
       patch = { status: "kein_interesse", gesperrt: true, wiedervorlage: null };
-      label = "Kein Interesse – wird nicht mehr angerufen";
+      label = "Kein Interesse – wird nicht mehr kontaktiert";
     }
     aus(id);
     try {
-      const vorher = await ergebnis(id, art === "nicht" ? "nicht_erreicht" : "kein_interesse", patch, text);
+      const vorher = await ergebnis(id, art === "kein" ? "kein_interesse" : "nicht_erreicht", patch, text);
       toast(label, async () => { try { await store.leadUpdate(id, vorher); await store.aktivitaet({ lead_id: id, typ: "notiz", text: "Ergebnis rückgängig gemacht" }); S.data.anrufeHeute--; zeige(); } catch (e) { fehler(e); } });
     } catch (e) { fehler(e); zeige(); }
   }
@@ -329,7 +631,7 @@
       v.nutzen,
       `Was wir Ihnen vorschlagen würden (Preise netto zzgl. USt):\n${liste}`,
       "Die 99 € im Monat sind Ihre Website-Flatrate: ein fester Betrag, alles drin – Sie müssen sich nie wieder selbst um Ihre Website kümmern. Und wir sorgen dafür, dass man Sie auch findet: Wir pflegen Ihren Eintrag bei Google Maps, machen Sie fit für die Suche mit KI-Assistenten wie ChatGPT und zeigen Ihnen jeden Monat in einem kurzen Bericht, wie oft Sie gefunden wurden. Jede Änderung – Öffnungs- und Urlaubszeiten, Preise, Aktionen, Texte oder Fotos – tragen wir jederzeit für Sie ein, eine kurze Nachricht genügt. Wir behalten laufend im Blick, ob Impressum und Datenschutz zu den aktuellen Gesetzen passen, und kümmern uns um Hosting, Sicherheit und Updates. Und falls Ihnen das Design nächsten Monat schon nicht mehr gefällt: Dann gestalten wir Ihre Seite eben komplett neu – alles ohne Extra-Kosten. Der Monatsbeitrag beginnt übrigens erst, wenn Ihre Seite live ist.",
-      z && z.demo_url ? `So könnte das für einen Betrieb wie Ihren aussehen:\n${z.demo_url}` : "Hier können Sie sich Beispiele für verschiedene Branchen ansehen und direkt ausprobieren:\nhttps://infinero.de/demo",
+      z && z.demo_url ? `So könnte das für einen Betrieb wie Ihren aussehen:\n${demoVon(l)}` : `Hier können Sie sich Beispiele für verschiedene Branchen ansehen und direkt ausprobieren:\n${demoVon(l)}`,
       "Mehr über uns finden Sie auf infinero.de.",
       link ? `Wenn Sie mögen, zeige ich Ihnen das in 15 Minuten am Telefon. Hier können Sie sich direkt einen Termin aussuchen:\n${link}` : "Wenn Sie mögen, zeige ich Ihnen das in 15 Minuten am Telefon – antworten Sie einfach kurz mit einem Wunschtermin.",
       "Und falls es gerade nicht passt: Eine kurze Nachricht genügt, dann melden wir uns nicht wieder.",
@@ -416,7 +718,8 @@
     const aktualisieren = () => { q("#am_open").href = mailtoVon(q("#am_an").value.trim(), q("#am_b").value, q("#am_t").value); };
     ["#am_an", "#am_b", "#am_t"].forEach(x => q(x).addEventListener("input", aktualisieren)); aktualisieren();
     const verschickt = async () => { if (a.stufe === "zusage") { await store.auftragUpdate(a.id, { stufe: "auftrag_raus", gesendet_am: new Date().toISOString() }); a.stufe = "auftrag_raus"; } };
-    store.mailBereit().then(ok => { if (ok) { q("#am_direkt").hidden = false; } else q("#am_open").classList.add("primary"); });
+    if (!mailErlaubt()) { q("#am_open").hidden = true; q("#am_copy").classList.add("primary"); }
+    else store.mailBereit().then(ok => { if (ok) { q("#am_direkt").hidden = false; } else q("#am_open").classList.add("primary"); });
     q("#am_send").addEventListener("click", async e => {
       const an = q("#am_an").value.trim(), b = e.currentTarget;
       if (!an) return toast("Bitte Empfänger eintragen");
@@ -443,7 +746,7 @@
         <label class="check full"><input id="i_ok" type="checkbox" required><span>Der Kontakt hat zugestimmt, dass wir ihm Infos per E-Mail schicken.</span></label>
         <div class="field full"><label for="i_n">Notiz</label><input id="i_n" placeholder="z. B. will Preise für Website + Chatbot"></div>
         <div class="full"><button class="btn primary block" type="submit">Speichern</button></div>
-      </form><p class="hint">Danach im Lead auf „Info-Mail öffnen“ tippen – die fertige Mail (Vorlage der Zielgruppe mit Produkten, Preisen und Demo-Link) öffnet sich in der Mail-App. Als Absender immer <b>kontakt@infinero.de</b> wählen. Offene Mails sieht Ziu auch im Cockpit.</p>`);
+      </form><p class="hint">${mailErlaubt() ? "" : "Ziu bekommt die Anfrage und schickt die Info-Mail. "}Danach im Lead auf „Info-Mail öffnen“ tippen – die fertige Mail (Vorlage der Zielgruppe mit Produkten, Preisen und Demo-Link) öffnet sich in der Mail-App. Als Absender immer <b>kontakt@infinero.de</b> wählen. Offene Mails sieht Ziu auch im Cockpit.</p>`);
     root.querySelector("#f").addEventListener("submit", async e => {
       e.preventDefault();
       const f = root; const prods = gewaehlt(f);
@@ -546,7 +849,7 @@
       if (q("#t_demo").checked) { if (!l.demo_website) patch.demo_website = "offen"; patch.demo_infos = demoLesen(root); }
       const notiz = q("#t_n").value.trim();
       if (mode === "termin") Object.assign(patch, { status: "termin", wiedervorlage: wann.toISOString(), naechster_schritt: `Termin ${dDE(wann)} ${hhmm(wann)}` });
-      else if (mode === "rueckruf") Object.assign(patch, { status: "rueckruf", wiedervorlage: wann.toISOString(), naechster_schritt: `Rückruf ${dDE(wann)} ${hhmm(wann)}` });
+      else if (mode === "rueckruf") Object.assign(patch, { status: "rueckruf", kanal: "telefon", wiedervorlage: wann.toISOString(), naechster_schritt: `Rückruf ${dDE(wann)} ${hhmm(wann)}` });
       else Object.assign(patch, { status: "interesse", wiedervorlage: naechsterWerktag(2, 10).toISOString(), naechster_schritt: notiz || "Interesse – nachfassen" });
       try {
         aus(id);
@@ -607,7 +910,7 @@
   function leadRow(l) {
     const st = STATUS[l.status] || [l.status, ""];
     return `<article class="card"><div class="head"><h3><button type="button" data-open="${l.id}">${esc(l.firma)}</button></h3><span class="pill ${l.gesperrt && l.status !== "kein_interesse" ? "bad" : st[1]}">${l.gesperrt && l.status !== "kein_interesse" ? "Gesperrt" : st[0]}</span></div>
-      <div class="meta">${[l.branche, l.ort, l.owner ? name(l.owner) : "Pool", l.wiedervorlage ? "WV " + dDE(l.wiedervorlage) : "", l.demo_website ? "Demo: " + l.demo_website.replace("_", " ") : ""].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join("")}</div></article>`;
+      <div class="meta">${[l.branche, l.ort, l.owner ? name(l.owner) : "Pool", l.owner && kanalVon(l) !== "telefon" ? (KANAELE.find(k => k[0] === l.kanal) || [])[1] : "", l.wiedervorlage ? "WV " + dDE(l.wiedervorlage) : "", l.demo_website ? "Demo: " + l.demo_website.replace("_", " ") : ""].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join("")}</div></article>`;
   }
 
   async function detail(id) {
@@ -623,8 +926,10 @@
         ${l.website ? `<div class="kv">${webLink(l.website)}${WEB[l.website_bewertung] ? `<span class="pill ${WEB[l.website_bewertung][1]}">${WEB[l.website_bewertung][0]}</span>` : ""}</div>${l.website_befund ? `<div class="befund">${esc(l.website_befund)}</div>` : ""}` : ""}
         <div class="kv">${mapsLink(l)}</div>
         ${l.email ? `<div class="kv"><span class="v">${esc(l.email)}</span>${l.einwilligung_email ? `<span class="pill ok">Einwilligung ${dDE(l.einwilligung_email)}</span>` : ""}</div>` : ""}
-        ${l.email && l.info_mail === "offen" ? `<div class="actions"><button class="btn small primary" type="button" data-infomail="${l.id}">Info-Mail öffnen</button><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>` : ""}
+        ${mailErlaubt() && l.email && l.info_mail === "offen" ? `<div class="actions"><button class="btn small primary" type="button" data-infomail="${l.id}">Info-Mail öffnen</button><button class="btn small" type="button" data-mailok="${l.id}">Als gesendet markieren</button></div>` : ""}
         ${l.interesse_produkte && l.interesse_produkte.length ? `<div class="meta"><span>Interesse: ${esc(l.interesse_produkte.join(", "))}</span></div>` : ""}
+        ${l.info_mail === "offen" && !mailErlaubt() ? `<div class="meta"><span>Info-Mail ist bei Ziu angefragt</span></div>` : ""}
+        ${l.demo_gesehen_am ? `<div class="kv">${demoGesehen(l)}<button class="btn small" type="button" data-copy="${esc(demoVon(l))}">Persönlicher Demo-Link</button></div>` : `<div class="kv"><span class="meta">Persönlicher Demo-Link (meldet, wenn er geöffnet wird)</span><button class="btn small" type="button" data-copy="${esc(demoVon(l))}">Kopieren</button></div>`}
         ${l.demo_website ? `<div class="demobox"><div class="kv"><b>Demo-Website: ${esc(l.demo_website.replace("_", " "))}</b><button class="btn small" type="button" data-demoinfo="${l.id}">${l.demo_infos ? "Infos bearbeiten" : "Infos erfassen"}</button></div>${demoText(l.demo_infos) || `<div class="due">Noch keine Infos für die Demo erfasst.</div>`}</div>` : ""}
         ${l._entwuerfe ? entwuerfeBlock(l._entwuerfe) : ""}
         ${l.gesperrt ? `<div class="due">Keine Werbung – nicht mehr kontaktieren.</div>` : ""}
@@ -647,8 +952,12 @@
       ${l._deals.length ? `<h2 class="sec">Abschlüsse</h2><div class="list">${l._deals.map(dealCard).join("")}</div>` : ""}
       <h2 class="sec">Daten</h2>
       <form id="f" class="form">
-        ${felder.map(([k, t]) => `<div class="field${k === "firma" || k === "naechster_schritt" ? " full" : ""}"><label for="d_${k}">${t}</label><input id="d_${k}" name="${k}" value="${esc(l[k])}"></div>`).join("")}
+        ${felder.map(([k, t]) => k === "naechster_schritt"
+          ? `<div class="field full"><label for="d_ns_wahl">${t}</label><select id="d_ns_wahl"><option value="">– wählen –</option>${SCHRITTE.map(x => `<option${x === l[k] ? " selected" : ""}>${esc(x)}</option>`).join("")}<option value="*"${l[k] && !SCHRITTE.includes(l[k]) ? " selected" : ""}>Eigener Text …</option></select>
+              <input id="d_${k}" name="${k}" value="${esc(l[k])}" placeholder="Eigener nächster Schritt"${l[k] && !SCHRITTE.includes(l[k]) ? "" : " hidden"} style="margin-top:6px"></div>`
+          : `<div class="field${k === "firma" ? " full" : ""}"><label for="d_${k}">${t}</label><input id="d_${k}" name="${k}" value="${esc(l[k])}"></div>`).join("")}
         <div class="field"><label for="d_wv">Wiedervorlage</label><input id="d_wv" name="wv" type="datetime-local" value="${l.wiedervorlage ? isoDate(new Date(l.wiedervorlage)) + "T" + hhmm(new Date(l.wiedervorlage)) : ""}"></div>
+        <div class="field"><label for="d_kanal">Kanal</label><select id="d_kanal" name="kanal">${(kanalVon(l) === "email" ? KANAELE : kanaele()).map(([k, t]) => `<option value="${k}"${kanalVon(l) === k ? " selected" : ""}>${t}</option>`).join("")}</select></div>
         ${inhaber() ? `<div class="field"><label for="d_owner">Betreut von</label><select id="d_owner" name="owner"><option value="">Pool</option>${S.team.map(t => `<option value="${t.kuerzel}"${l.owner === t.kuerzel ? " selected" : ""}>${esc(t.name)}</option>`).join("")}</select></div>` : ""}
         ${inhaber() && l.demo_website ? `<div class="field"><label for="d_demo">Demo-Website</label><select id="d_demo" name="demo"><option value="offen"${l.demo_website === "offen" ? " selected" : ""}>offen</option><option value="in_arbeit"${l.demo_website === "in_arbeit" ? " selected" : ""}>in Arbeit</option><option value="fertig"${l.demo_website === "fertig" ? " selected" : ""}>fertig</option></select></div>` : ""}
         <div class="field full"><label for="d_notiz">Neue Notiz</label><textarea id="d_notiz" name="notiz"></textarea></div>
@@ -656,6 +965,8 @@
       </form>
       ${l._akt.length ? `<h2 class="sec">Verlauf</h2><div class="log">${l._akt.map(a => `<div><time>${dDE(a.zeit)} ${hhmm(new Date(a.zeit))}</time>${esc(name(a.von))}: ${esc([a.ergebnis ? (STATUS[a.ergebnis] || [a.ergebnis])[0] : a.typ, a.text].filter(Boolean).join(" – "))}</div>`).join("")}</div>` : ""}
       ${inhaber() ? `<div class="actions" id="delwrap"><button class="btn danger small" type="button" data-askdel="${l.id}">Lead löschen</button></div>` : ""}`);
+    const nsWahl = root.querySelector("#d_ns_wahl"), nsText = root.querySelector("#d_naechster_schritt");
+    nsWahl.addEventListener("change", () => { const eigen = nsWahl.value === "*"; nsText.hidden = !eigen; if (eigen) { nsText.value = ""; nsText.focus(); } else nsText.value = nsWahl.value; });
     root.querySelector("#f").addEventListener("submit", async e => {
       e.preventDefault();
       const fd = new FormData(e.target), patch = {};
@@ -664,6 +975,7 @@
       if (patch.website) patch.website = patch.website.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
       const wv = fd.get("wv"); patch.wiedervorlage = wv ? new Date(wv).toISOString() : null;
       if (inhaber() && fd.has("owner")) patch.owner = fd.get("owner") || null;
+      if (fd.has("kanal")) patch.kanal = fd.get("kanal");
       if (fd.has("demo")) patch.demo_website = fd.get("demo");
       try {
         await store.leadUpdate(l.id, patch);
@@ -749,12 +1061,12 @@
       <div class="field"><label for="n_q">Quelle</label><select id="n_q" name="quelle"><option>Eigenrecherche</option><option>Empfehlung</option><option>Laufkundschaft</option><option>Messe</option><option>Sonstiges</option></select></div>
       <div class="field full"><label for="n_n">Notiz</label><input id="n_n" name="notiz"></div>
       <div class="full"><button class="btn primary block" type="submit">Lead anlegen</button></div></form>
-      <p class="hint">Der Lead landet in deiner Liste unter „Heute → Neue Leads“.</p>`);
+      <p class="hint">Der Lead landet in deiner Liste unter „Heute“ im gerade gewählten Kanal (${esc((KANAELE.find(k => k[0] === kanal()) || [])[1] || "Telefon")}).</p>`);
     root.querySelector("#f").addEventListener("submit", async e => {
       e.preventDefault(); const fd = new FormData(e.target), d = {};
       for (const [k, v] of fd.entries()) d[k] = v.toString().trim() || null;
       if (d.website) d.website = d.website.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-      d.owner = S.view.kuerzel; d.zugeteilt_am = new Date().toISOString(); d.prio = d.website ? 0 : 10; d.website_bewertung = d.website ? null : "keine";
+      d.owner = S.view.kuerzel; d.zugeteilt_am = new Date().toISOString(); d.kanal = kanal(); d.prio = d.website ? 0 : 10; d.website_bewertung = d.website ? null : "keine";
       try { await store.leadAnlegen(d); schliessen(); toast("Lead angelegt"); } catch (err) { fehler(err); }
     });
   }
@@ -1325,7 +1637,7 @@
     if (ds.open) return detail(+ds.open);
     if (t.hasAttribute("data-close")) { if (ds.back) return detail(+ds.back); return schliessen(); }
     if (ds.oc) {
-      if (ds.oc === "nicht" || ds.oc === "kein") { const imSheet = !!t.closest(".sheet"); if (imSheet) schliessen(false); await schnell(id, ds.oc); if (imSheet) zeige(); return; }
+      if (ds.oc === "nicht" || ds.oc === "kein" || ds.oc === "weg") { const imSheet = !!t.closest(".sheet"); if (imSheet) schliessen(false); await schnell(id, ds.oc); if (imSheet) zeige(); return; }
       if (ds.oc === "info") return infoSheet(id);
       if (ds.oc === "ja") return interesseSheet(id, "termin");
       if (ds.oc === "rueckruf") return interesseSheet(id, "rueckruf");
@@ -1351,11 +1663,16 @@
     if (ds.dodel) { try { await store.leadLoeschen(+ds.dodel); schliessen(); toast("Gelöscht"); } catch (err) { fehler(err); } return; }
     if (ds.terminok || ds.terminab) { try { await store.terminUpdate(+(ds.terminok || ds.terminab), { status: ds.terminok ? "erledigt" : "abgesagt" }); toast(ds.terminok ? "Termin erledigt" : "Termin abgesagt"); zeige(); } catch (err) { fehler(err); } return; }
     if (ds.pay || ds.payout) { try { await store.dealUpdate(+(ds.pay || ds.payout), { [ds.pay ? "zahlung_eingegangen" : "provision_ausgezahlt"]: isoDate(new Date()) }); toast("Eingetragen"); zeige(); } catch (err) { fehler(err); } return; }
-    if (ds.infomail) return infoMailSheet(+ds.infomail);
+    if (ds.infomail) return mailErlaubt() ? infoMailSheet(+ds.infomail) : toast("Mails verschickt Ziu");
     if (ds.mailok) { try { await store.leadUpdate(+ds.mailok, { info_mail: "gesendet" }); await store.aktivitaet({ lead_id: +ds.mailok, typ: "mail", text: "Info-Mail gesendet" }); toast("Als gesendet markiert"); schliessen(); } catch (err) { fehler(err); } return; }
     if (ds.demo) { try { await store.leadUpdate(id, { demo_website: ds.demo }); toast("Demo-Website: " + (ds.demo === "fertig" ? "fertig" : "in Arbeit")); zeige(); } catch (err) { fehler(err); } return; }
     if (ds.copy) { try { await navigator.clipboard.writeText(ds.copy); toast("Kopiert"); } catch (err) { toast(ds.copy); } return; }
     if (t.id === "more") return ladenSheet();
+    if (ds.kanal) { if (!kanaele().some(k => k[0] === ds.kanal)) return; S.kanal = ds.kanal; lsSet(KANAL_KEY, ds.kanal); S.neuFilter = null; window.scrollTo(0, 0); return zeige(); }
+    if (ds.kanalladen) return kanalLadenSheet(ds.kanalladen);
+    if (ds.erstmail) return mailErlaubt() ? erstMailSheet(+ds.erstmail, ds.art || "erst") : toast("Mails verschickt Ziu");
+    if (ds.zutelefon) return zuTelefon(+ds.zutelefon);
+    if (t.dataset && "voort" in t.dataset) { S.voOrt = t.dataset.voort || null; return zeige(); }
     if (ds.spaeter) return spaeterSheet(+ds.spaeter, ds.anruf === "1");
     if (ds.reaktiv) return reaktivieren(+ds.reaktiv);
     if (t.dataset && "spaeterprod" in t.dataset) { S.spaeterProd = t.dataset.spaeterprod || null; return zeige(); }
@@ -1372,13 +1689,34 @@
     if (e.target.id === "terminf") { e.preventDefault(); try { await store.setTerminLink($("#tl").value.trim()); S.cfg = await store.vertriebConfig(); toast("Termin-Link gespeichert"); } catch (err) { fehler(err); } }
     if (e.target.id === "demof") { e.preventDefault(); try { for (const i of e.target.querySelectorAll("[data-demo-url]")) await store.setDemoUrl(i.dataset.demoUrl, i.value.trim()); S.zg = await store.zielgruppen(); toast("Demo-Links gespeichert"); } catch (err) { fehler(err); } }
   });
-  document.addEventListener("change", e => { if (e.target.id === "csvin" && e.target.files[0]) csvImport(e.target.files[0]); });
+  document.addEventListener("change", async e => {
+    if (e.target.id === "csvin" && e.target.files[0]) return csvImport(e.target.files[0]);
+    if (e.target.dataset && e.target.dataset.ns) {
+      const id = +e.target.dataset.ns, wert = e.target.value || null, l = findLead(id) || {};
+      try {
+        const patch = { naechster_schritt: wert };
+        if (wert === "Demo bauen" && !l.demo_website) patch.demo_website = "offen";
+        await store.leadUpdate(id, patch); Object.assign(l, patch);
+        await store.aktivitaet({ lead_id: id, typ: "notiz", text: "Nächster Schritt: " + (wert || "–") });
+        if (wert === "Demo bauen") { toast("Demo-Wunsch an Ziu – kurz die Infos erfassen"); demoSheet(id); } else toast("Nächster Schritt gespeichert");
+      } catch (err) { fehler(err); }
+    }
+  });
   let qT; document.addEventListener("input", e => { if (e.target.id === "q") { S.q = e.target.value; clearTimeout(qT); qT = setTimeout(async () => { const pos = e.target.selectionStart; await zeige(); const q = $("#q"); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } }, 300); } });
 
   // ---------------------------------------------------------------- Neu in der App (Patchnotes)
   // Bei JEDEM App-Update oben einen Eintrag ergänzen (neueste zuerst, v = Datum JJJJ-MM-TT, bei mehreren am Tag „-2“ usw.).
   // Nur, was für Ziu/Elias im Alltag wichtig ist – kurz, in Stichpunkten. { t, nur: "inhaber" } = nur für Ziu sichtbar.
   const NEUES = [
+    { v: "2026-10-07", titel: "Neu: Vor Ort, Nächster Schritt & Demo-Alarm", punkte: [
+      "Oben in „Heute“ wählst du jetzt den <b>Kanal</b>. „Telefon“ ist alles wie bisher.",
+      "<b>Vor Ort</b>: nur Betriebe <b>in der Innenstadt</b> (zu Fuß erreichbar) <b>ohne Website oder mit klar veralteter Seite</b> – <b>Jena zuerst</b>, dann Weimar, Erfurt, Gera, Leipzig. Die Liste ist als Laufweg sortiert, mit nummerierter <b>Laufroute in Google Maps</b> (bei vielen Betrieben in Etappen à 10 Stopps).",
+      "Vor Ort gibt es „Demo zeigen“, „Vorab-Demo“ (Ziu baut vorher eine eigene Demo für den Betrieb) und „Zusage!“. Nach 2× nicht angetroffen geht der Betrieb ans Telefon.",
+      "<b>Nächster Schritt</b> ist jetzt auf jeder Karte eine Auswahl (Anrufen, Demo bauen, Angebot schicken …). „Demo bauen“ meldet den Wunsch direkt an Ziu.",
+      "<b>👀 Demo angesehen</b>: Jeder Betrieb hat einen persönlichen Demo-Link („Link kopieren“, Details). Öffnet er ihn, kommt sofort eine Push-Nachricht – perfekter Moment zum Anrufen.",
+      { t: "<b>E-Mail-Kanal (nur für dich)</b>: Betriebe mit Mail-Adresse – die App sucht Adressen selbst auf Website und Impressum. „Mail schreiben“ mit Vorlage oder <b>✨ Claude</b>, Versand als <b>gestaltete Mail im INFINERO-Look</b> mit neuer Signatur. Nach 4 Werktagen Nachfass-Mail, danach geht der Betrieb ans Telefon.", nur: "inhaber" },
+      { t: "Mails (Info-Mail, Online-Auftrag per Mail, Erstkontakt) kann nur noch Ziu verschicken – Vertriebler sehen keine Mail-Knöpfe, den Auftragslink können sie weiter kopieren.", nur: "inhaber" },
+    ] },
     { v: "2026-10-06", titel: "Empfehlungslinks (Partner)", punkte: [
       "Wer über einen <b>Empfehlungslink</b> (z. B. von Jörg) auf infinero.de kommt und den Check macht oder schreibt, ist in der App mit <b>„Empfehlung: Jörg“</b> markiert.",
       "Es zählt, wer zuerst da war: War der Betrieb schon bei uns in Arbeit, gibt es keine Empfehlung.",
